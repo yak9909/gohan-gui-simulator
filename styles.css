@@ -287,7 +287,7 @@ footer span {
 
 @keyframes fun-rainbow-shift {
   0% { background-position: 0 0; }
-  100% { background-position: 0 720px; }
+  100% { background-position: 0 1080px; }
 }
 
 @keyframes fun-text-float {
@@ -335,10 +335,10 @@ body.fun-mode .counter span {
     rgb(255 46 151) 91.667%,
     rgb(255 46 46) 100%
   );
-  background-size: 100% 720px;
+  background-size: 100% 1080px;
   background-repeat: repeat-y;
   background-attachment: fixed;
-  animation: fun-rainbow-shift 9s linear infinite;
+  animation: fun-rainbow-shift 3.6s linear infinite;
 }
 
 body.fun-mode button.primary,
