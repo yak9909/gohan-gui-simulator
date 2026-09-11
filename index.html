@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101210">
+  <title>CTRPF UI Preview</title>
+  <link rel="stylesheet" href="styles.css?v=20260831-6">
+</head>
+<body>
+  <main class="app-shell">
+    <header class="app-header">
+      <div>
+        <p class="overline">CTRPF v0.8.0 / NEW NINTENDO 3DS</p>
+        <h1>CTRPF UI Preview</h1>
+      </div>
+      <div class="header-actions">
+        <div class="font-status"><span></span> Misaki Gothic 2nd + PixelMplus10 values / 8px / 1bit</div>
+        <button id="scaleButton" type="button" aria-pressed="false">画面サイズを2倍</button>
+        <button id="openMenuButton" class="primary" type="button">チートメニューを開く</button>
+      </div>
+    </header>
+
+    <section class="screen-settings" aria-label="画面背景色">
+      <div class="setting-copy">
+        <strong>画面背景色</strong>
+        <span>top.bmpは使用せず、選択した単色で描画します。</span>
+      </div>
+      <label><span>TOP</span><input id="topBackgroundColor" type="color" value="#111411" aria-label="上画面の背景色"><output id="topBackgroundValue">#111411</output></label>
+      <label><span>BOTTOM</span><input id="bottomBackgroundColor" type="color" value="#111411" aria-label="下画面の背景色"><output id="bottomBackgroundValue">#111411</output></label>
+    </section>
+
+    <section class="preview-area" aria-label="New Nintendo 3DS screen preview">
+      <div class="screen-block">
+        <div class="screen-heading"><strong>TOP</strong><span id="topScaleLabel">400 × 240 px · PIXEL 1:1</span></div>
+        <div class="screen-frame top-frame">
+          <canvas id="topScreen" width="400" height="240" aria-label="上画面 400x240"></canvas>
+        </div>
+      </div>
+
+      <div class="hinge" aria-hidden="true"><span></span></div>
+
+      <div class="screen-block">
+        <div class="screen-frame bottom-frame">
+          <canvas id="bottomScreen" width="320" height="240" aria-label="下画面 320x240"></canvas>
+        </div>
+        <div class="screen-heading bottom-heading"><strong>BOTTOM</strong><span id="bottomScaleLabel">320 × 240 px · PIXEL 1:1</span></div>
+      </div>
+    </section>
+
+    <section class="controls" aria-label="プレビュー操作">
+      <div class="control-copy">
+        <strong>プレビュー操作</strong>
+        <span>メニューはキーボードまたは下の仮想ボタンで操作できます。</span>
+      </div>
+      <div class="buttons">
+        <button id="addButton" class="primary" type="button">通知を追加</button>
+        <button id="burstButton" type="button">3件を連続追加</button>
+        <button id="clearButton" type="button">クリア</button>
+      </div>
+      <div class="counter"><span id="activeCount">0</span><small>NOTICE</small></div>
+      <div class="counter dirty"><span id="dirtyCount">0</span><small>CHANGED</small></div>
+    </section>
+
+    <section class="controller" aria-label="仮想3DSコントローラー">
+      <div class="dpad">
+        <button data-control="up" type="button">↑</button>
+        <button data-control="left" type="button">←</button>
+        <button data-control="down" type="button">↓</button>
+        <button data-control="right" type="button">→</button>
+      </div>
+      <div class="aux-buttons" aria-label="ショルダー・システムボタン">
+        <button data-control="zl" type="button">ZL</button>
+        <button data-control="l" type="button">L</button>
+        <button data-control="r" type="button">R</button>
+        <button data-control="zr" type="button">ZR</button>
+        <button data-control="select" type="button">SELECT</button>
+        <button data-control="start" type="button">START</button>
+      </div>
+      <div class="control-help">
+        <b>A</b> 決定　<b>B</b> 戻る／閉じる　<b>X</b> 選択項目を適用　<b>L</b> 未適用変更を戻す　<b>Y</b> ホットキー
+      </div>
+      <div class="face-buttons">
+        <button data-control="y" type="button">Y</button>
+        <button data-control="x" type="button">X</button>
+        <button data-control="b" type="button">B</button>
+        <button data-control="a" class="face-a" type="button">A</button>
+      </div>
+    </section>
+
+    <footer>
+      矢印キー + Z/Enter=A、X/Esc=B、C=X、V=Y、Q=L、R=R、E=ZL、T=ZR、1=SELECT、2=START。<span>SPACE</span> で通知を追加できます。
+    </footer>
+  </main>
+
+  <script src="font/misaki-gothic-2nd-8.js?v=20260831-6"></script>
+  <script src="font/pixel-mplus-10-numeric-8.js?v=20260831-6"></script>
+  <script src="ui-model.js?v=20260831-6"></script>
+  <script src="app.js?v=20260831-6"></script>
+</body>
+</html>
