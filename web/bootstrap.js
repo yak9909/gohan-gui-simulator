@@ -8,12 +8,7 @@
   try {
     (0, eval)(await inflate(window.__CTRPF_UI_GZ_B64));
     delete window.__CTRPF_UI_GZ_B64;
-    const appSource = await inflate(window.__CTRPF_APP_GZ_B64);
-    const tunedAppSource = appSource
-      .replace("hueSpeed: 0.040,", "hueSpeed: 0.100,")
-      .replace("huePerPixel: 1.08,", "huePerPixel: 0.333333,");
-    if (tunedAppSource === appSource) throw new Error("Fun mode tuning targets were not found");
-    (0, eval)(tunedAppSource);
+    (0, eval)(await inflate(window.__CTRPF_APP_GZ_B64));
     delete window.__CTRPF_APP_GZ_B64;
   } catch (error) {
     console.error("CTRPF preview bootstrap failed", error);
