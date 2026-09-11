@@ -283,3 +283,104 @@ footer span {
   .app-header, .header-actions { align-items: flex-start; flex-direction: column; }
   .preview-area { align-items: flex-start; overflow-x: auto; }
 }
+
+
+@keyframes fun-rainbow-shift {
+  0% { background-position: 0% 50%; filter: hue-rotate(0deg); }
+  100% { background-position: 200% 50%; filter: hue-rotate(360deg); }
+}
+
+@keyframes fun-text-float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-3px); }
+}
+
+body.fun-mode .overline,
+body.fun-mode h1,
+body.fun-mode .font-status,
+body.fun-mode .screen-heading,
+body.fun-mode .setting-copy strong,
+body.fun-mode .setting-copy span,
+body.fun-mode .screen-settings label > span,
+body.fun-mode .screen-settings output,
+body.fun-mode .control-copy strong,
+body.fun-mode .control-copy span,
+body.fun-mode .counter small,
+body.fun-mode .control-help,
+body.fun-mode .control-help b,
+body.fun-mode footer,
+body.fun-mode footer span,
+body.fun-mode button {
+  animation: fun-text-float 2.4s ease-in-out infinite;
+}
+
+body.fun-mode .header-actions > *,
+body.fun-mode .screen-settings > *,
+body.fun-mode .controls > *,
+body.fun-mode .controller > * {
+  --fun-stagger: 0;
+  animation-delay: calc(var(--fun-stagger) * -140ms);
+}
+
+body.fun-mode .header-actions > :nth-child(1),
+body.fun-mode .screen-settings > :nth-child(1),
+body.fun-mode .controls > :nth-child(1),
+body.fun-mode .controller > :nth-child(1) { --fun-stagger: 0; }
+
+body.fun-mode .header-actions > :nth-child(2),
+body.fun-mode .screen-settings > :nth-child(2),
+body.fun-mode .controls > :nth-child(2),
+body.fun-mode .controller > :nth-child(2) { --fun-stagger: 1; }
+
+body.fun-mode .header-actions > :nth-child(3),
+body.fun-mode .screen-settings > :nth-child(3),
+body.fun-mode .controls > :nth-child(3),
+body.fun-mode .controller > :nth-child(3) { --fun-stagger: 2; }
+
+body.fun-mode .header-actions > :nth-child(4),
+body.fun-mode .screen-settings > :nth-child(4),
+body.fun-mode .controls > :nth-child(4),
+body.fun-mode .controller > :nth-child(4) { --fun-stagger: 3; }
+
+body.fun-mode .controls > :nth-child(5),
+body.fun-mode .controller > :nth-child(5) { --fun-stagger: 4; }
+
+body.fun-mode .controls > :nth-child(6),
+body.fun-mode .controller > :nth-child(6) { --fun-stagger: 5; }
+
+body.fun-mode .font-status span,
+body.fun-mode button.primary,
+body.fun-mode button.active,
+body.fun-mode .face-buttons .face-a,
+body.fun-mode .counter span {
+  background-image: linear-gradient(90deg, #ff5f6d, #ffc371, #8cff5a, #4deaff, #867bff, #ff5fd7, #ff5f6d);
+  background-size: 200% 100%;
+  animation-name: fun-text-float, fun-rainbow-shift;
+  animation-duration: 2.4s, 5s;
+  animation-timing-function: ease-in-out, linear;
+  animation-iteration-count: infinite, infinite;
+}
+
+body.fun-mode button.primary,
+body.fun-mode button.active {
+  border-color: transparent;
+  color: #08140d;
+}
+
+body.fun-mode .face-buttons .face-a,
+body.fun-mode .counter span {
+  -webkit-text-fill-color: transparent;
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+body.fun-mode .font-status span {
+  box-shadow: 0 0 10px rgba(255,255,255,.35);
+}
+
+body.fun-mode .screen-settings,
+body.fun-mode .controls,
+body.fun-mode .controller,
+body.fun-mode .app-header {
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.04);
+}
