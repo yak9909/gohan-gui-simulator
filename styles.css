@@ -338,7 +338,7 @@ body.fun-mode .counter span {
   background-size: 100% 720px;
   background-repeat: repeat-y;
   background-attachment: fixed;
-  animation: fun-rainbow-shift 11.25s linear infinite;
+  animation: fun-rainbow-shift 9s linear infinite;
 }
 
 body.fun-mode button.primary,
