@@ -64,7 +64,7 @@ npm start
 - かな配列のカナキーでカタカナ入力へ切り替え
 - 上画面・下画面の汎用リストボックス
 
-「チートメニューを開く」ボタン、画面下の仮想3DSボタン、またはキーボードで操作できます。矢印キーがDPad、Z/EnterがA、X/EscがB、CがX、VがY、Q=L、RがR、EがZL、TがZR、1がSELECT、2がSTARTです。
+「チートメニューを開く」ボタン、画面下の仮想3DSボタン、またはキーボードで操作できます。矢印キーがDPad、Z/EnterがA、X/EscがB、CがX、VがY、QがL、RがR、EがZL、TがZR、1がSELECT、2がSTARTです。
 
 ## 注意
 

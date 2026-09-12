@@ -1,0 +1,10 @@
+{
+  "name": "ctrpf-gui-simulator",
+  "version": "1.0.0",
+  "private": true,
+  "description": "New Nintendo 3DS custom cheat-menu and notification preview for CTRPluginFramework v0.8.0",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.js"
+  }
+}
