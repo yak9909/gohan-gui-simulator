@@ -546,7 +546,7 @@ test("menu selection eases between rows, pulses gently, and value changes bounce
   assert.ok(menu.selectionBounceOffset(850) < 0);
 });
 
-test("favorites are reference-based, reversible, restorable, and accessible with R/SELECT", () => {
+test("favorites are reference-based, reversible, restorable, and accessible with R/START", () => {
   const emitted = [];
   const menu = new CheatMenuModel((title, message) => emitted.push({ title, message }));
   menu.open(0);
@@ -561,7 +561,7 @@ test("favorites are reference-based, reversible, restorable, and accessible with
   assert.deepEqual(menu.favoriteKeysArray(), [source.favoriteKey]);
   assert.ok(emitted.some((notice) => notice.title === "FAVORITES" && /ADD/.test(notice.message)));
 
-  menu.handle("select", 120);
+  menu.handle("start", 120);
   assert.equal(menu.currentFrame().title, "FAVORITES");
   assert.equal(menu.currentFrame().kind, "favorites");
   assert.equal(menu.currentFrame().items.length, 1);
@@ -577,7 +577,7 @@ test("favorites are reference-based, reversible, restorable, and accessible with
 
   assert.equal(menu.restoreFavorites([source.favoriteKey, "missing/key"], 180), 1);
   assert.equal(menu.isFavorite(source), true);
-  menu.handle("select", 200);
+  menu.handle("start", 200);
   assert.equal(menu.currentFrame().items[0], source);
   menu.handle("b", 220);
   assert.equal(menu.currentFrame().title, "ROOT");
@@ -588,16 +588,17 @@ test("favorites are reference-based, reversible, restorable, and accessible with
 
   const empty = new CheatMenuModel((title, message) => emitted.push({ title, message }));
   empty.open(0);
-  empty.handle("select", 10);
+  empty.handle("start", 10);
   assert.equal(empty.currentFrame().title, "ROOT");
   assert.ok(emitted.some((notice) => notice.title === "FAVORITES" && notice.message === "NO ITEMS"));
 
   assert.match(appSource, /gohan-menu-favorites-v1/);
   assert.match(appSource, /localStorage\.setItem/);
   assert.match(appSource, /menu\.isFavorite\(entry\).*"F"/s);
-  assert.match(appSource, /SELECT:FAVORITES/);
+  assert.match(appSource, /START:FAVORITES/);
   assert.match(html, /<b>R<\/b> お気に入り切替/);
-  assert.match(html, /<b>SELECT<\/b> お気に入り一覧/);
+  assert.match(html, /<b>START<\/b> お気に入り一覧/);
+  assert.doesNotMatch(modelSource, /key === "select" && !repeated\) this\.openFavorites/);
 });
 
 test("pressing A gives the selected item a small 80ms horizontal bounce", () => {
