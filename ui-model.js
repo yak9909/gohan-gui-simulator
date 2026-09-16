@@ -271,6 +271,9 @@ function item(type, label, description, options = {}) {
   if (Object.hasOwn(result, "value")) {
     result.appliedValue = result.value;
   }
+  // CTRPF移植時も「項目の適用値」と「関数内の効果状態」は別フィールドで持つ。
+  // ホットキーで変わるのは effectActive 側で、appliedValue はメニュー適用でしか変えない。
+  if (result.type === "checkbox" && result.effectKind) result.effectActive = Boolean(result.effectActive);
   return result;
 }
 
@@ -288,8 +291,8 @@ function createMenuTree() {
   ));
   return [
     item("folder", "プレイヤー", "プレイヤー関連のチートを開きます。", { children: [
-      item("checkbox", "無敵モード", "ダメージを受けなくなります。", { value: false }),
-      item("checkbox", "壁抜け", "当たり判定を無効にします。", { value: false }),
+      item("checkbox", "無敵モード", "ダメージを受けなくなります。", { value: false, effectKind: "toggle" }),
+      item("checkbox", "壁抜け", "当たり判定を無効にします。", { value: false, effectKind: "toggle" }),
       item("action", "名前を変更", "下画面に五十音順キーボードを開きます。", { action: "text-keyboard" })
     ] }),
     item("checkbox", "歩行速度アップ", "移動速度の変更を有効にします。", { value: false }),
@@ -309,7 +312,7 @@ function createMenuTree() {
     ] }),
     item("list", "大量リスト", "多数のリスト項目をインライン表示してスクロールを確認します。", { options: [...LONG_LIST_OPTIONS], value: 0 }),
     item("folder", "スクロールテスト", "多数のチート項目を表示してスクロールを確認します。", { children: scrollTestItems }),
-    item("checkbox", "しずえスキップ", "しずえの会話を飛ばして村へ出ます。起動時の一括処理を先に実行します。", { value: false }),
+    item("checkbox", "しずえスキップ", "しずえの会話を飛ばして村へ出ます。起動時の一括処理を先に実行します。", { value: false, simulateTick: true }),
     item("action", "チャット漢字候補", "チャットの入力から漢字候補を取得し下画面に表示します。", { action: "chat-kanji" }),
     ...additionalItems
   ];
@@ -706,8 +709,28 @@ class CheatMenuModel {
 
   executeActiveCheckboxes(now) {
     walkItems(this.rootItems, (entry) => {
-      if (entry.type === "checkbox" && entry.appliedValue === true) this.execute(entry, now);
+      if (entry.type === "checkbox" && entry.appliedValue === true && entry.simulateTick) this.execute(entry, now);
     });
+  }
+
+  setCheckboxEffect(entry, active, now = 0) {
+    if (!entry || entry.type !== "checkbox" || !entry.effectKind) return false;
+    const next = Boolean(active);
+    if (entry.effectActive === next) return false;
+    entry.effectActive = next;
+    entry.effectChangeCount = (entry.effectChangeCount || 0) + 1;
+    entry.lastEffectChangedAt = now;
+    this.execute(entry, now);
+    return true;
+  }
+
+  commitHotkeyValue(entry, value, now = 0) {
+    const changed = entry.appliedValue !== value;
+    entry.value = value;
+    entry.appliedValue = value;
+    // メニュー外のホットキー入力UIには X 適用操作がないため、確定をそのまま適用として扱う。
+    if (changed) this.execute(entry, now);
+    return changed;
   }
 
   dirtyCount() {
@@ -718,12 +741,27 @@ class CheatMenuModel {
 
   commitItem(entry, now = 0) {
     if (!isDirty(entry)) return false;
+    const hasValue = Object.hasOwn(entry, "value");
+    const valueChanged = hasValue && entry.value !== entry.appliedValue;
     const previousAppliedValue = entry.appliedValue;
-    if (Object.hasOwn(entry, "value")) entry.appliedValue = entry.value;
+    if (hasValue) entry.appliedValue = entry.value;
     entry.appliedHotkey = entry.hotkey;
-    if (entry.type === "checkbox" && previousAppliedValue !== entry.appliedValue) {
+
+    if (entry.type === "checkbox" && valueChanged) {
+      if (entry.effectKind) {
+        // パッチ/ToggledEffect系のCTRPF実装でも同じ順序にする:
+        // ON適用時に束縛なしなら効果ON、束縛ありならアームのみ、OFF適用時は必ず効果OFF。
+        this.setCheckboxEffect(entry, entry.appliedValue === true && entry.appliedHotkey === "なし", now);
+      }
       this.emit(entry.appliedValue ? "CHEAT ENABLED" : "CHEAT DISABLED", entry.label);
     }
+    else if (valueChanged && ["value", "slider", "list"].includes(entry.type)) {
+      this.execute(entry, now);
+    }
+
+    // ホットキー設定だけを適用した場合は effectActive に触れない。
+    // これはCTRPF側でも「束縛変更」と「効果のON/OFF」を分離するための契約。
+    void previousAppliedValue;
     return true;
   }
 
@@ -827,17 +865,29 @@ class CheatMenuModel {
 
   activateHotkeyItem(entry, now) {
     if (entry.type === "checkbox") {
-      entry.value = !entry.value;
-      entry.appliedValue = entry.value;
-      this.emit(entry.value ? "CHEAT ENABLED" : "CHEAT DISABLED", entry.label);
+      if (entry.appliedValue !== true || !entry.effectKind) return false;
+      // CTRPF移植時もホットキーでは項目の applied を反転させない。
+      // 反転対象は関数内の効果状態だけで、項目OFFなら発火自体を無視する。
+      return this.setCheckboxEffect(entry, !entry.effectActive, now);
     }
-    else if (entry.type === "action") this.runAction(entry, now);
-    else if (entry.type === "list") {
+    if (entry.type === "action") {
+      this.runAction(entry, now);
+      return true;
+    }
+    if (entry.type === "list") {
       this.openListbox("top", entry.label, entry.options, "hotkey-item", entry.value, now);
       this.overlay.item = entry;
+      return true;
     }
-    else if (entry.type === "value") this.openNumeric(entry, true);
-    else if (entry.type === "slider") this.openSlider(entry, true);
+    if (entry.type === "value") {
+      this.openNumeric(entry, true);
+      return true;
+    }
+    if (entry.type === "slider") {
+      this.openSlider(entry, true);
+      return true;
+    }
+    return false;
   }
 
   releaseInactiveHotkeys() {
@@ -854,8 +904,8 @@ class CheatMenuModel {
     let triggered = false;
     walkItems(this.rootItems, (entry) => {
       if (entry.type === "folder" || this.activeHotkeyItems.has(entry.id) || !hotkeyMatches(entry.appliedHotkey, this.heldControls)) return;
+      if (!this.activateHotkeyItem(entry, now)) return;
       this.activeHotkeyItems.add(entry.id);
-      this.activateHotkeyItem(entry, now);
       triggered = true;
     });
     return triggered;
@@ -910,7 +960,7 @@ class CheatMenuModel {
     overlay.column = Math.min(overlay.column, columns - 1);
   }
 
-  activateNumericKey(key) {
+  activateNumericKey(key, now = 0) {
     const overlay = this.overlay;
     const entry = overlay.item;
     if (!numericKeyEnabled(overlay, key)) return false;
@@ -930,8 +980,9 @@ class CheatMenuModel {
       let value = overlay.mode === "hex" ? Number.parseInt(overlay.buffer, 16) : Number(overlay.buffer);
       if (!Number.isFinite(value)) value = entry.minimum;
       const decimals = entry.format === "float" ? 10 : 1;
-      entry.value = Math.round(clamp(value, entry.minimum, entry.maximum) * decimals) / decimals;
-      if (overlay.applyOnConfirm) entry.appliedValue = entry.value;
+      const confirmedValue = Math.round(clamp(value, entry.minimum, entry.maximum) * decimals) / decimals;
+      if (overlay.applyOnConfirm) this.commitHotkeyValue(entry, confirmedValue, now);
+      else entry.value = confirmedValue;
       this.overlay = null;
     }
     return true;
@@ -1010,8 +1061,7 @@ class CheatMenuModel {
       else if (key === "a") {
         if (overlay.onConfirm === "hotkey") overlay.item.hotkey = overlay.options[overlay.index];
         else if (overlay.onConfirm === "hotkey-item") {
-          overlay.item.value = overlay.index;
-          overlay.item.appliedValue = overlay.index;
+          this.commitHotkeyValue(overlay.item, overlay.index, now);
           this.emit("SELECTED", `${overlay.options[overlay.index]}を選択しました`);
         }
         else this.emit("SELECTED", `${overlay.options[overlay.index]}を選択しました`);
@@ -1025,8 +1075,8 @@ class CheatMenuModel {
       else if (key === "up") overlay.value = clamp(overlay.value + overlay.item.step * 5, overlay.item.minimum, overlay.item.maximum);
       else if (key === "down") overlay.value = clamp(overlay.value - overlay.item.step * 5, overlay.item.minimum, overlay.item.maximum);
       else if (key === "a") {
-        overlay.item.value = overlay.value;
-        if (overlay.applyOnConfirm) overlay.item.appliedValue = overlay.value;
+        if (overlay.applyOnConfirm) this.commitHotkeyValue(overlay.item, overlay.value, now);
+        else overlay.item.value = overlay.value;
         this.overlay = null;
       }
       else if (key === "b") this.overlay = null;
@@ -1035,7 +1085,7 @@ class CheatMenuModel {
     if (overlay.type === "numeric") {
       const keys = numericKeys(overlay.mode, overlay.item.format === "float");
       if (["up", "down", "left", "right"].includes(key)) this.moveGrid(overlay, key, keys);
-      else if (key === "a") this.activateNumericKey(keys[overlay.row][overlay.column]);
+      else if (key === "a") this.activateNumericKey(keys[overlay.row][overlay.column], now);
       else if (key === "b") this.overlay = null;
       return;
     }
