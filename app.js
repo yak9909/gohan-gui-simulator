@@ -3,9 +3,9 @@
 (function () {
 
 const {
-  SCREEN, NOTICE, MENU, FRAME, TEXT_KEYBOARD, clamp, mix, NotificationTimeline, CheatMenuModel, ControlRepeater,
+  SCREEN, NOTICE, MENU, FRAME, BOTTOM_OVERLAY, TEXT_KEYBOARD, clamp, mix, NotificationTimeline, CheatMenuModel, ControlRepeater,
   isDirty, formatValue, numericKeys, numericKeyEnabled, selectionPulse, selectionOutlinePulse, listboxAmount, listboxScrollPosition,
-  textKeyboardAmount, dialogAmount, textKeys, textKeyLayout, textKeyEnabled, toKatakana, textCursor, formatHotkeyButtons
+  bottomOverlayAmount, textKeyboardAmount, dialogAmount, textKeys, textKeyLayout, textKeyEnabled, toKatakana, textCursor, formatHotkeyButtons
 } = typeof module !== "undefined" && module.exports ? require("./ui-model.js") : window.CTRPFUiModel;
 
 function measureBitmapText(font, text) {
@@ -514,13 +514,21 @@ function boot() {
       if (overlay.closing) bottomHitRegions = [];
       return;
     }
-    const backdropAmount = overlay.type === "listbox" ? listboxAmount(overlay, now) : 1;
-    if (backdropAmount <= 0) return;
-    bottom.fillStyle = `rgba(16, 20, 17, ${(0.72 * backdropAmount).toFixed(3)})`; bottom.fillRect(0, 0, 320, 240);
-    if (overlay.type === "numeric") drawNumericKeyboard(overlay);
-    else if (overlay.type === "slider") drawSlider(overlay);
-    else if (overlay.type === "listbox") drawListbox(bottom, 52, 216, overlay, now, bottomCanvas.width);
-    else if (overlay.type === "hotkey-capture") drawHotkeyCapture(overlay);
+    const amount = overlay.type === "listbox" ? listboxAmount(overlay, now) : bottomOverlayAmount(overlay, now);
+    if (amount <= 0) return;
+    bottom.fillStyle = `rgba(16, 20, 17, ${(BOTTOM_OVERLAY.backdropAlpha * amount).toFixed(3)})`;
+    bottom.fillRect(0, 0, bottomCanvas.width, bottomCanvas.height);
+    if (overlay.type === "listbox") {
+      drawListbox(bottom, 52, 216, overlay, now, bottomCanvas.width);
+    } else {
+      bottom.save();
+      bottom.globalAlpha = amount;
+      if (overlay.type === "numeric") drawNumericKeyboard(overlay);
+      else if (overlay.type === "slider") drawSlider(overlay);
+      else if (overlay.type === "hotkey-capture") drawHotkeyCapture(overlay);
+      bottom.restore();
+    }
+    if (overlay.closing) bottomHitRegions = [];
   }
 
   let nextFrameAt = 0;
@@ -600,8 +608,9 @@ function boot() {
     const region = bottomHitRegions.find((entry) => point.x >= entry.x && point.x <= entry.x + entry.width && point.y >= entry.y && point.y <= entry.y + entry.height);
     if (!region || !menu.overlay) return;
     if (menu.overlay.type === "hotkey-capture") {
-      if (region.captureAction === "disable") menu.disableHotkeyCapture();
-      else if (region.captureAction === "cancel") menu.cancelHotkeyCapture();
+      const now = performance.now();
+      if (region.captureAction === "disable") menu.disableHotkeyCapture(now);
+      else if (region.captureAction === "cancel") menu.cancelHotkeyCapture(now);
       return;
     }
     if (region.textCursor && menu.overlay.type === "text") {
