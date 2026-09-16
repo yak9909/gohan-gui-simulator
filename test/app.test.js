@@ -11,6 +11,7 @@ const {
   CONTROL_REPEAT,
   TOGGLE_ACTION,
   LISTBOX,
+  BOTTOM_OVERLAY,
   TEXT_KEYBOARD,
   DIALOG,
   CLOSE_DIALOG_OPTIONS,
@@ -36,6 +37,7 @@ const {
   dialogAmount,
   listboxAmount,
   listboxScrollPosition,
+  bottomOverlayAmount,
   textKeyboardAmount,
   textKeys,
   textKeyLayout,
@@ -57,6 +59,7 @@ const css = fs.readFileSync(path.join(__dirname, "../styles.css"), "utf8");
 const appSource = fs.readFileSync(path.join(__dirname, "../app.js"), "utf8");
 const modelSource = fs.readFileSync(path.join(__dirname, "../ui-model.js"), "utf8");
 const serverSource = fs.readFileSync(path.join(__dirname, "../server.js"), "utf8");
+const pagesWorkflow = fs.readFileSync(path.join(__dirname, "../.github/workflows/pages.yml"), "utf8");
 const fontScript = fs.readFileSync(path.join(__dirname, "../font/misaki-gothic-2nd-8.js"), "utf8");
 const numericFontScript = fs.readFileSync(path.join(__dirname, "../font/pixel-mplus-10-numeric-8.js"), "utf8");
 
@@ -69,6 +72,11 @@ test("preview update and rendering are capped to 30 FPS", () => {
   assert.equal(FRAME.interval, 1000 / 30);
   assert.match(appSource, /if \(now < nextFrameAt\) return/);
   assert.match(appSource, /nextFrameAt = now \+ FRAME\.interval/);
+});
+
+test("Pages deploy gives JavaScript assets a fresh cache key on every run", () => {
+  assert.match(pagesWorkflow, /GITHUB_RUN_ID/);
+  assert.match(pagesWorkflow, /re\.sub\(r'src="/);
 });
 
 test("default and two-times modes use exact integer pixel scales", () => {
@@ -1064,8 +1072,8 @@ test("inline and screen listboxes ease in and remain mounted through their exit 
   const overlay = menu.overlay;
   assert.equal(listboxAmount(overlay, 500), 0);
   assert.equal(listboxAmount(overlay, 680), 1);
-  assert.match(appSource, /const backdropAmount = overlay\.type === "listbox" \? listboxAmount\(overlay, now\) : 1/);
-  assert.match(appSource, /0\.72 \* backdropAmount/);
+  assert.match(appSource, /const amount = overlay\.type === "listbox" \? listboxAmount\(overlay, now\) : bottomOverlayAmount\(overlay, now\)/);
+  assert.match(appSource, /BOTTOM_OVERLAY\.backdropAlpha \* amount/);
   menu.handle("b", 680);
   assert.equal(menu.overlay, overlay);
   menu.update(860);
@@ -1202,15 +1210,71 @@ test("numeric keyboard can switch decimal and hexadecimal and clamps to limits",
   assert.equal(menu.overlay.type, "numeric");
   assert.equal(menu.overlay.mode, "dec");
   menu.overlay.buffer = "999999";
-  menu.activateNumericKey("OK");
+  menu.activateNumericKey("OK", 590);
   assert.equal(valueItem.value, valueItem.maximum);
+  assert.equal(menu.overlay.closing, true);
+  menu.update(770);
+  assert.equal(menu.overlay, null);
 
   menu.currentFrame().selection = 1;
-  menu.handle("a", 420);
+  menu.handle("a", 780);
   assert.equal(menu.overlay.mode, "hex");
-  menu.activateNumericKey("DEC");
+  menu.activateNumericKey("DEC", 790);
   assert.equal(menu.overlay.mode, "dec");
   assert.equal(numericKeys("hex", false).length, 6);
+});
+
+test("numeric, slider, and hotkey bottom overlays fade their panels and backdrop in and out", () => {
+  assert.deepEqual(BOTTOM_OVERLAY, { animationDuration: 180, backdropAlpha: 0.72 });
+
+  const numericMenu = new CheatMenuModel();
+  numericMenu.open(0);
+  numericMenu.currentFrame().selection = 4;
+  numericMenu.handle("a", 100);
+  numericMenu.currentFrame().selection = 0;
+  numericMenu.handle("a", 110);
+  const numeric = numericMenu.overlay;
+  assert.equal(bottomOverlayAmount(numeric, 110), 0);
+  assert.ok(bottomOverlayAmount(numeric, 200) > 0.5);
+  assert.equal(bottomOverlayAmount(numeric, 290), 1);
+  numericMenu.handle("b", 290);
+  assert.equal(numericMenu.overlay, numeric);
+  assert.equal(numeric.closing, true);
+  assert.ok(bottomOverlayAmount(numeric, 380) < 0.5);
+  numericMenu.update(469);
+  assert.equal(numericMenu.overlay, numeric);
+  numericMenu.update(470);
+  assert.equal(numericMenu.overlay, null);
+
+  const sliderMenu = new CheatMenuModel();
+  sliderMenu.open(0);
+  sliderMenu.currentFrame().selection = 4;
+  sliderMenu.handle("a", 500);
+  sliderMenu.currentFrame().selection = 3;
+  sliderMenu.handle("a", 510);
+  const slider = sliderMenu.overlay;
+  assert.equal(slider.type, "slider");
+  assert.equal(bottomOverlayAmount(slider, 510), 0);
+  assert.equal(bottomOverlayAmount(slider, 690), 1);
+  sliderMenu.handle("b", 690);
+  assert.equal(slider.closing, true);
+  sliderMenu.update(870);
+  assert.equal(sliderMenu.overlay, null);
+
+  const hotkeyMenu = new CheatMenuModel();
+  hotkeyMenu.open(0);
+  hotkeyMenu.currentFrame().selection = 1;
+  hotkeyMenu.handle("y", 900, true);
+  const capture = hotkeyMenu.overlay;
+  assert.equal(bottomOverlayAmount(capture, 900), 0);
+  assert.equal(bottomOverlayAmount(capture, 1080), 1);
+  hotkeyMenu.cancelHotkeyCapture(1080);
+  assert.equal(capture.closing, true);
+  hotkeyMenu.update(1260);
+  assert.equal(hotkeyMenu.overlay, null);
+
+  assert.match(appSource, /bottom\.globalAlpha = amount/);
+  assert.match(appSource, /BOTTOM_OVERLAY\.backdropAlpha \* amount/);
 });
 
 test("decimal and hexadecimal keyboards share one layout and disabled keys cannot input", () => {
@@ -1262,14 +1326,18 @@ test("hotkey capture records a unique chord until every held button is released"
   menu.handle("a", 460, false);
   assert.deepEqual(menu.overlay.capturedButtons, ["l", "a"], "repeated A presses must not duplicate the chord");
   menu.handle("l", 470, false);
-  assert.equal(menu.overlay, null);
+  assert.equal(menu.overlay.closing, true);
   assert.equal(menu.selectedItem().hotkey, "L+A");
+  menu.update(650);
+  assert.equal(menu.overlay, null);
   assert.equal(isDirty(menu.selectedItem()), true);
   assert.equal(formatHotkeyButtons(["a", "l", "a"]), "L+A");
   assert.deepEqual(HOTKEY_BUTTON_ORDER.slice(0, 4), ["zl", "l", "r", "zr"]);
-  assert.equal(menu.openHotkeyPicker(480), undefined);
+  assert.equal(menu.openHotkeyPicker(660), undefined);
   assert.equal(menu.overlay.screen, "bottom");
-  menu.cancelHotkeyCapture();
+  menu.cancelHotkeyCapture(840);
+  menu.update(1020);
+  assert.equal(menu.overlay, null);
   assert.doesNotMatch(modelSource, /descriptionHeld/);
   assert.match(appSource, /drawDescriptionPanel\(amount\)/);
   assert.match(appSource, /drawHotkeyCapture\(/);
@@ -1283,8 +1351,11 @@ test("hotkey capture records a unique chord until every held button is released"
   disableMenu.currentFrame().selection = 1;
   disableMenu.handle("y", 500, true);
   disableMenu.handle("y", 510, false);
-  assert.equal(disableMenu.disableHotkeyCapture(), true);
+  assert.equal(disableMenu.disableHotkeyCapture(680), true);
   assert.equal(disableMenu.selectedItem().hotkey, "なし");
+  assert.equal(disableMenu.overlay.closing, true);
+  disableMenu.update(860);
+  assert.equal(disableMenu.overlay, null);
   assert.equal(textKeys("kana").length, 6);
   assert.equal(textKeys("abc")[1].join(""), "qwertyuiop");
 });
