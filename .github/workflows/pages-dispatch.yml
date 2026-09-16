@@ -1,0 +1,20 @@
+name: Refresh Pages from work branch
+
+on:
+  push:
+    branches: ["work/**"]
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch Pages deploy from main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SOURCE_REF: ${{ github.ref_name }}
+        run: gh workflow run pages.yml --repo "$REPO" --ref main -f source_ref="$SOURCE_REF"
