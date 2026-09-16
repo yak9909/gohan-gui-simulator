@@ -514,7 +514,9 @@ function boot() {
       if (overlay.closing) bottomHitRegions = [];
       return;
     }
-    bottom.fillStyle = "rgba(16, 20, 17, .72)"; bottom.fillRect(0, 0, 320, 240);
+    const backdropAmount = overlay.type === "listbox" ? listboxAmount(overlay, now) : 1;
+    if (backdropAmount <= 0) return;
+    bottom.fillStyle = `rgba(16, 20, 17, ${(0.72 * backdropAmount).toFixed(3)})`; bottom.fillRect(0, 0, 320, 240);
     if (overlay.type === "numeric") drawNumericKeyboard(overlay);
     else if (overlay.type === "slider") drawSlider(overlay);
     else if (overlay.type === "listbox") drawListbox(bottom, 52, 216, overlay, now, bottomCanvas.width);
