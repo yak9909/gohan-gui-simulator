@@ -3,7 +3,7 @@
 (function () {
 
 const {
-  SCREEN, NOTICE, MENU, TEXT_KEYBOARD, clamp, mix, NotificationTimeline, CheatMenuModel, ControlRepeater,
+  SCREEN, NOTICE, MENU, FRAME, TEXT_KEYBOARD, clamp, mix, NotificationTimeline, CheatMenuModel, ControlRepeater,
   isDirty, formatValue, numericKeys, numericKeyEnabled, selectionPulse, selectionOutlinePulse, listboxAmount, listboxScrollPosition,
   textKeyboardAmount, dialogAmount, textKeys, textKeyLayout, textKeyEnabled, toKatakana, textCursor, formatHotkeyButtons
 } = typeof module !== "undefined" && module.exports ? require("./ui-model.js") : window.CTRPFUiModel;
@@ -116,7 +116,7 @@ function textKeyDisplay(key, overlay) {
 }
 
 function isNumericEntry(entry) {
-  return entry && (entry.type === "value" || entry.type === "slider");
+  return entry && ["value", "slider", "linked-value"].includes(entry.type);
 }
 
 function isNumericKeyLabel(label) {
@@ -170,9 +170,35 @@ function boot() {
   function itemIcon(entry) {
     if (entry.type === "folder") return ">";
     if (entry.type === "checkbox") return entry.value ? "[X]" : "[ ]";
+    if (entry.type === "toggle-action") return "!";
     if (entry.type === "action") return "A";
+    if (entry.type === "linked-list" || entry.type === "linked-value") return "S";
     if (entry.type === "list") return "L";
     return "V";
+  }
+
+  function itemIconColor(entry, fallback) {
+    if (entry.type === "folder") return "#63e4a4";
+    if (entry.type === "toggle-action") return "#ff8a7a";
+    if (entry.type === "linked-list" || entry.type === "linked-value") return "#5cc8ff";
+    return fallback;
+  }
+
+  function itemTypeBadge(entry) {
+    if (entry.type === "toggle-action") return { text: "ONCE", color: "#ff8a7a" };
+    if (entry.type === "linked-list" || entry.type === "linked-value") return { text: "SYNC", color: "#5cc8ff" };
+    return null;
+  }
+
+  function drawItemIcon(entry, x, y, color) {
+    if (entry.type === "checkbox" && entry.value) {
+      // CTRPF側でも [X] を一括描画せず、Xだけ別色で描くと同じ見た目を再現できる。
+      let cursor = drawBitmapText(top, font, "[", x, y, color);
+      cursor = drawBitmapText(top, font, "X", cursor, y, "#ff6b6b");
+      drawBitmapText(top, font, "]", cursor, y, color);
+      return;
+    }
+    drawBitmapText(top, font, itemIcon(entry), x, y, itemIconColor(entry, color));
   }
 
   function drawScrollBar(context, x, y, height, visibleRows, itemCount, scrollPosition) {
@@ -191,6 +217,7 @@ function boot() {
       if (menu.overlay && menu.overlay.type === "listbox" && menu.overlay.screen === "top") {
         drawListbox(top, topOverlayHorizontalPosition(0, 204, 178), 204, menu.overlay, now, SCREEN.width);
       }
+      if (menu.dialog) drawDialog(now);
       return;
     }
     const amount = menu.openAmount(now);
@@ -227,16 +254,17 @@ function boot() {
       const y = Math.round(28 + (index - start) * MENU.itemHeight);
       const selected = index === selection;
       const itemOffset = selected ? Math.round(activationOffset) : 0;
-      const color = isDirty(entry) ? "#ffd166" : selected ? "#ffffff" : "#aeb9b1";
-      drawBitmapText(top, font, itemIcon(entry), menuX + 8 + itemOffset, y, entry.type === "folder" ? "#63e4a4" : color);
-      const value = formatValue(entry);
+      const color = entry.disabled ? "#525b54" : isDirty(entry) ? "#ffd166" : selected ? "#ffffff" : "#aeb9b1";
+      drawItemIcon(entry, menuX + 8 + itemOffset, y, color);
+      const value = formatValue(entry, now);
       const valueFont = isNumericEntry(entry) ? numericFont : font;
       const valueWidth = value ? measureBitmapText(valueFont, value) : 0;
       const labelWidth = MENU.width - 33 - valueWidth;
       drawBitmapText(top, font, trimBitmapText(font, entry.label, labelWidth), menuX + 27 + itemOffset, y, color);
-      if (value) drawBitmapText(top, valueFont, value, menuX + MENU.width - 8 - valueWidth + itemOffset, y, color);
+      const valueColor = entry.type === "toggle-action" && (entry.executionFeedbackUntil || 0) > now ? "#ff7b72" : color;
+      if (value) drawBitmapText(top, valueFont, value, menuX + MENU.width - 8 - valueWidth + itemOffset, y, valueColor);
       if (entry.type !== "folder" && entry.hotkey !== "なし") drawBitmapText(top, font, "H", menuX + 147 + itemOffset, y + 8, "#78a9ff");
-      if (y >= 25 && y <= 204) topHitRegions.push({ x: menuX + 4, y: y - 3, width: MENU.width - 10, height: 16, itemIndex: index });
+      if (!entry.disabled && y >= 25 && y <= 204) topHitRegions.push({ x: menuX + 4, y: y - 3, width: MENU.width - 10, height: 16, itemIndex: index });
     }
     top.restore();
     drawScrollBar(top, menuX + 154, 28, 176, MENU.visibleRows, frame.items.length, start);
@@ -246,6 +274,7 @@ function boot() {
     drawBitmapText(top, font, "A決定 X適用 Y HOTKEY", menuX + 6, 220, "#829087");
     drawBitmapText(top, font, `${changed}変更`, menuX + 6, 230, changed ? "#ffd166" : "#58635b");
     drawBitmapText(top, font, "B戻る L変更戻し", menuX + 72, 230, "#829087");
+    drawHoldProgress(menuX, now);
 
     if (menu.inlineList) drawInlineList(menuX, start, now);
     drawDescriptionPanel(amount);
@@ -294,8 +323,24 @@ function boot() {
     top.strokeStyle = "#4f6c5b"; top.strokeRect(x + .5, y + .5, width - 1, height - 1);
     drawBitmapText(top, font, trimBitmapText(font, entry.label, width - 16), x + 8, y + 7, "#63e4a4");
     drawBitmapText(top, font, `HOTKEY:${entry.type === "folder" ? "--" : entry.hotkey}`, x + 8, y + 18, "#78a9ff");
-    lines.forEach((line, index) => drawBitmapText(top, font, line, x + 8, y + 31 + index * 11, "#c4cec7"));
+    const badge = itemTypeBadge(entry);
+    if (badge) {
+      const badgeWidth = measureBitmapText(font, badge.text);
+      drawBitmapText(top, font, badge.text, x + width - 8 - badgeWidth, y + 18, badge.color);
+    }
+    lines.forEach((line, index) => drawBitmapText(top, font, line, x + 8, y + 31 + index * 11, entry.disabled ? "#626b64" : "#c4cec7"));
     top.restore();
+  }
+
+  function drawHoldProgress(menuX, now) {
+    const hold = menu.holdActionProgress(now);
+    if (!hold) return;
+    const x = menuX + 5, y = 201, width = MENU.width - 12;
+    top.fillStyle = "rgba(7, 9, 8, .94)"; top.fillRect(x, y, width, 14);
+    top.strokeStyle = "#ffd166"; top.strokeRect(x + .5, y + .5, width - 1, 13);
+    drawBitmapText(top, font, hold.label, x + 5, y + 2, "#ffffff");
+    top.fillStyle = "rgba(85, 72, 34, .85)"; top.fillRect(x + 5, y + 10, width - 10, 2);
+    top.fillStyle = "#ffd166"; top.fillRect(x + 5, y + 10, Math.round((width - 10) * hold.progress), 2);
   }
 
   function drawHotkeyCapture(overlay) {
@@ -476,7 +521,13 @@ function boot() {
     else if (overlay.type === "hotkey-capture") drawHotkeyCapture(overlay);
   }
 
+  let nextFrameAt = 0;
   function frame(now) {
+    requestAnimationFrame(frame);
+    if (now < nextFrameAt) return;
+    // CTRPF移植時も描画・入力更新を30Hzの同一tickへ寄せる。
+    // ブラウザ側は高リフレッシュレートでも余分なrAFを描画せず、30FPSへ固定する。
+    nextFrameAt = now + FRAME.interval;
     controls.update(now);
     top.fillStyle = topBackgroundColor.value; top.fillRect(0, 0, topCanvas.width, topCanvas.height);
     bottom.fillStyle = bottomBackgroundColor.value; bottom.fillRect(0, 0, bottomCanvas.width, bottomCanvas.height);
@@ -487,7 +538,6 @@ function boot() {
     activeCount.textContent = String(notices.length);
     dirtyCount.textContent = String(menu.dirtyCount());
     openMenuButton.textContent = menu.openTarget ? "チートメニューを閉じる" : "チートメニューを開く";
-    requestAnimationFrame(frame);
   }
 
   function pressControl(key, pressed = true) {
