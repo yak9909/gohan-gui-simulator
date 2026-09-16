@@ -1124,7 +1124,7 @@ test("inline and screen listboxes ease in and remain mounted through their exit 
   assert.equal(menu.overlay, null);
 });
 
-test("closing the cheat menu cancels open listboxes with their exit animation", () => {
+test("closing the cheat menu closes inline and bottom listboxes but keeps top listboxes open", () => {
   const inlineMenu = new CheatMenuModel();
   inlineMenu.open(0);
   inlineMenu.currentFrame().selection = 3;
@@ -1152,6 +1152,23 @@ test("closing the cheat menu cancels open listboxes with their exit animation", 
   assert.equal(overlay.closing, true);
   screenMenu.update(480);
   assert.equal(screenMenu.overlay, null);
+
+  const topMenu = new CheatMenuModel();
+  topMenu.open(0);
+  topMenu.openListbox("top", "TEST", ["A", "B"], null, 0, 100);
+  topMenu.handle("down", 280);
+  const topOverlay = topMenu.overlay;
+  topMenu.close(300);
+  assert.equal(topMenu.overlay, topOverlay);
+  assert.equal(topOverlay.closing, false, "top listbox remains interactive while menu closes");
+  assert.equal(topOverlay.index, 1);
+  topMenu.update(480);
+  assert.equal(topMenu.overlay, topOverlay);
+  assert.ok(topMenu.openAmount(480) < 0.01);
+  topMenu.handle("up", 500);
+  assert.equal(topOverlay.index, 0, "top listbox stays operable with the menu closed");
+  topMenu.open(600);
+  assert.equal(topMenu.overlay, topOverlay, "reopening the menu preserves the same top listbox");
 });
 
 test("long inline and screen listboxes scroll their selection inside fixed-height windows", () => {
@@ -1240,6 +1257,7 @@ test("top and bottom screen listboxes are vertically centered for their rendered
   assert.match(appSource, /const y = listboxVerticalPosition\(overlay\.options\.length, overlay\.visibleRows\)/);
   assert.match(appSource, /topOverlayHorizontalPosition\(0, 204, 178\)/);
   assert.match(appSource, /topOverlayHorizontalPosition\(amount, 204, 178\)/);
+  assert.match(modelSource, /上画面リストはメニュー本体とは独立した操作UIとして維持する/);
   assert.match(appSource, /drawListbox\(bottom, 52, 216, overlay/);
 });
 
