@@ -1162,12 +1162,13 @@ test("closing the cheat menu closes inline and bottom listboxes but keeps top li
   assert.equal(topMenu.overlay, topOverlay);
   assert.equal(topOverlay.closing, false, "top listbox remains interactive while menu closes");
   assert.equal(topOverlay.index, 1);
-  topMenu.update(480);
+  topMenu.update(620);
   assert.equal(topMenu.overlay, topOverlay);
-  assert.ok(topMenu.openAmount(480) < 0.01);
-  topMenu.handle("up", 500);
+  assert.ok(topMenu.openAmount(620) < 0.01);
+  assert.equal(topMenu.visible, false);
+  topMenu.handle("up", 630);
   assert.equal(topOverlay.index, 0, "top listbox stays operable with the menu closed");
-  topMenu.open(600);
+  topMenu.open(700);
   assert.equal(topMenu.overlay, topOverlay, "reopening the menu preserves the same top listbox");
 });
 
