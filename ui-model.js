@@ -973,6 +973,7 @@ class CheatMenuModel {
   }
 
   activateHotkeyItem(entry, now) {
+    if (!entry || entry.disabled) return false;
     if (entry.type === "checkbox") {
       if (entry.appliedValue !== true || !entry.effectKind) return false;
       // CTRPF移植時もホットキーでは項目の applied を反転させない。
