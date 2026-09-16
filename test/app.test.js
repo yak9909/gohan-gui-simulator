@@ -1249,4 +1249,3 @@ test("applied hotkeys activate supported items once per complete button chord", 
   assert.equal(pending.value, before, "an unapplied hotkey setting must not run");
   menu.handle("x", 100, false);
 });
-});
