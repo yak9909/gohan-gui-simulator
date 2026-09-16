@@ -1398,7 +1398,7 @@ class CheatMenuModel {
     else if ((key === "x" || key === "l") && !repeated) this.beginHoldAction(key, now);
     else if (key === "y") this.openHotkeyPicker(now);
     else if (key === "r" && !repeated) this.toggleFavorite(this.selectedItem(), now);
-    else if (key === "select" && !repeated) this.openFavorites(now);
+    else if (key === "start" && !repeated) this.openFavorites(now);
     else if ((key === "left" || key === "right") && ["value", "slider", "linked-value"].includes(this.selectedItem().type)) this.changeValue(this.selectedItem(), key === "right" ? 1 : -1, now);
   }
 
