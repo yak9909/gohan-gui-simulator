@@ -13,9 +13,12 @@ const MENU = Object.freeze({
   scrollDuration: 100,
   valueBounceDuration: 100,
   activationBounceDuration: 80,
-  pulseDuration: 1800
+  pulseDuration: 1800,
+  holdDuration: 600
 });
+const FRAME = Object.freeze({ fps: 30, interval: 1000 / 30 });
 const CONTROL_REPEAT = Object.freeze({ delay: 200, interval: 60 });
+const TOGGLE_ACTION = Object.freeze({ feedbackDuration: 800 });
 const LISTBOX = Object.freeze({ animationDuration: 180, scrollDuration: 100, inlineVisibleRows: 6, screenVisibleRows: 8 });
 const TEXT_KEYBOARD = Object.freeze({ animationDuration: 180, backdropAlpha: 0.38 });
 // Hardware action messages; conversion is performed only by the ACNL plugin.
@@ -30,7 +33,9 @@ const DIALOG = Object.freeze({ animationDuration: 160 });
 const CLOSE_DIALOG_OPTIONS = Object.freeze(["適用", "キャンセル"]);
 const DIALOG_DEFINITIONS = Object.freeze({
   close: Object.freeze({ title: "変更を適用しますか？", options: CLOSE_DIALOG_OPTIONS }),
-  "revert-all": Object.freeze({ title: "変更を戻しますか？", options: Object.freeze(["戻す", "キャンセル"]) })
+  "apply-all": Object.freeze({ title: "全ての変更を適用しますか？", options: Object.freeze(["適用", "キャンセル"]) }),
+  "revert-all": Object.freeze({ title: "全ての変更を戻しますか？", options: Object.freeze(["戻す", "キャンセル"]) }),
+  "toggle-action-hotkey": Object.freeze({ title: "アクションを実行しますか？", options: Object.freeze(["実行", "キャンセル"]) })
 });
 const HOTKEYS = Object.freeze(["なし", "L+UP", "R+DOWN", "ZL+ZR", "SELECT"]);
 const HOTKEY_BUTTON_ORDER = Object.freeze(["zl", "l", "r", "zr", "up", "down", "left", "right", "a", "b", "x", "y", "select", "start"]);
@@ -192,7 +197,7 @@ class ControlRepeater {
   press(key, now) {
     if (this.held.has(key)) return;
     this.held.set(key, {
-      repeatable: ["up", "down", "left", "right", "x"].includes(key),
+      repeatable: ["up", "down", "left", "right"].includes(key),
       nextAt: now + CONTROL_REPEAT.delay
     });
     this.dispatch(key, now, true, false);
@@ -271,6 +276,9 @@ function item(type, label, description, options = {}) {
   if (Object.hasOwn(result, "value")) {
     result.appliedValue = result.value;
   }
+  // CTRPF移植時も「項目の適用値」と「関数内の効果状態」は別フィールドで持つ。
+  // ホットキーで変わるのは effectActive 側で、appliedValue はメニュー適用でしか変えない。
+  if (result.type === "checkbox" && result.effectKind) result.effectActive = Boolean(result.effectActive);
   return result;
 }
 
@@ -288,8 +296,8 @@ function createMenuTree() {
   ));
   return [
     item("folder", "プレイヤー", "プレイヤー関連のチートを開きます。", { children: [
-      item("checkbox", "無敵モード", "ダメージを受けなくなります。", { value: false }),
-      item("checkbox", "壁抜け", "当たり判定を無効にします。", { value: false }),
+      item("checkbox", "無敵モード", "ダメージを受けなくなります。", { value: false, effectKind: "toggle" }),
+      item("checkbox", "壁抜け", "当たり判定を無効にします。", { value: false, effectKind: "toggle" }),
       item("action", "名前を変更", "下画面に五十音順キーボードを開きます。", { action: "text-keyboard" })
     ] }),
     item("checkbox", "歩行速度アップ", "移動速度の変更を有効にします。", { value: false }),
@@ -305,11 +313,14 @@ function createMenuTree() {
       item("action", "上画面リスト", "上画面へ汎用リストボックスを開きます。", { action: "top-listbox" }),
       item("action", "下画面リスト", "下画面へ汎用リストボックスを開きます。", { action: "bottom-listbox" }),
       item("action", "文字キーボード", "五十音順とQWERTYを切り替えられます。", { action: "text-keyboard" }),
-      item("action", "小型文字キーボード", "小さい文字キーボードを開きます。", { action: "compact-text-keyboard" })
+      item("action", "小型文字キーボード", "小さい文字キーボードを開きます。", { action: "compact-text-keyboard" }),
+      item("linked-value", "連動型数値", "メニューを開いた時にゲームの値を取得し、適用時に設定する連動型です。", { format: "dec", value: 1250, linkedValue: 1250, linkedAvailable: true, minimum: 0, maximum: 99999, step: 50 }),
+      item("linked-list", "連動型リスト", "メニューを開いた時にゲームの値を取得し、適用時に設定する連動型です。", { options: ["晴れ", "雨", "雪"], value: 0, linkedValue: 0, linkedAvailable: true }),
+      item("toggle-action", "トグル型アクション", "ONにして適用すると一度実行してOFFへ戻ります。ホットキーでは確認します。", { value: false })
     ] }),
     item("list", "大量リスト", "多数のリスト項目をインライン表示してスクロールを確認します。", { options: [...LONG_LIST_OPTIONS], value: 0 }),
     item("folder", "スクロールテスト", "多数のチート項目を表示してスクロールを確認します。", { children: scrollTestItems }),
-    item("checkbox", "しずえスキップ", "しずえの会話を飛ばして村へ出ます。起動時の一括処理を先に実行します。", { value: false }),
+    item("checkbox", "しずえスキップ", "しずえの会話を飛ばして村へ出ます。起動時の一括処理を先に実行します。", { value: false, simulateTick: true }),
     item("action", "チャット漢字候補", "チャットの入力から漢字候補を取得し下画面に表示します。", { action: "chat-kanji" }),
     ...additionalItems
   ];
@@ -327,12 +338,16 @@ function walkItems(items, callback) {
   }
 }
 
-function formatValue(entry) {
+function formatValue(entry, now = 0) {
   if (entry.type === "checkbox") return entry.value ? "ON" : "OFF";
-  if (entry.type === "list") return entry.options[entry.value];
+  if (entry.type === "toggle-action") {
+    if ((entry.executionFeedbackUntil || 0) > now) return "OK";
+    return entry.value ? "ON" : "OFF";
+  }
+  if (entry.type === "list" || entry.type === "linked-list") return entry.options[entry.value];
   if (entry.format === "hex") return `0x${Math.round(entry.value).toString(16).toUpperCase().padStart(4, "0")}`;
   if (entry.format === "float") return Number(entry.value).toFixed(1);
-  if (entry.type === "value" || entry.type === "slider") return String(Math.round(entry.value));
+  if (["value", "slider", "linked-value"].includes(entry.type)) return String(Math.round(entry.value));
   return "";
 }
 
@@ -565,6 +580,7 @@ class CheatMenuModel {
     this.selectionBoundaryBlockedDirection = 0;
     this.heldControls = new Set();
     this.activeHotkeyItems = new Set();
+    this.holdAction = null;
   }
 
   currentFrame() { return this.frames[this.frames.length - 1]; }
@@ -584,7 +600,15 @@ class CheatMenuModel {
     return scrollTarget(selection, this.currentFrame().items.length, MENU.visibleRows);
   }
 
+  normalizeSelection() {
+    const frame = this.currentFrame();
+    if (!frame.items[frame.selection]?.disabled) return;
+    const next = frame.items.findIndex((entry) => !entry.disabled);
+    if (next >= 0) frame.selection = next;
+  }
+
   resetSelectionAnimation(now) {
+    this.normalizeSelection();
     const selection = this.currentFrame().selection;
     this.selectionFrom = selection;
     this.selectionTo = selection;
@@ -598,17 +622,23 @@ class CheatMenuModel {
   moveSelection(direction, now, allowWrap = true) {
     const frame = this.currentFrame();
     const previous = frame.selection;
-    const candidate = previous + direction;
-    if (!allowWrap && (candidate < 0 || candidate >= frame.items.length)) {
-      if (this.selectionBoundaryBlockedDirection !== direction) {
-        this.selectionBoundaryBounceDirection = direction;
-        this.selectionBoundaryBounceStartedAt = now;
-        this.selectionBoundaryBlockedDirection = direction;
+    let next = previous;
+    for (let attempt = 0; attempt < frame.items.length; attempt++) {
+      let candidate = next + direction;
+      if (!allowWrap && (candidate < 0 || candidate >= frame.items.length)) {
+        if (this.selectionBoundaryBlockedDirection !== direction) {
+          this.selectionBoundaryBounceDirection = direction;
+          this.selectionBoundaryBounceStartedAt = now;
+          this.selectionBoundaryBlockedDirection = direction;
+        }
+        return false;
       }
-      return false;
+      candidate = (candidate + frame.items.length) % frame.items.length;
+      next = candidate;
+      if (!frame.items[next].disabled) break;
     }
+    if (next === previous || frame.items[next].disabled) return false;
     this.selectionBoundaryBlockedDirection = 0;
-    const next = (candidate + frame.items.length) % frame.items.length;
     this.viewportFrom = this.viewportStart(now);
     this.viewportTarget = scrollTarget(next, frame.items.length, MENU.visibleRows);
     this.viewportStartedAt = now;
@@ -661,8 +691,25 @@ class CheatMenuModel {
     if (target === 1) this.visible = true;
   }
 
+  syncLinkedItems() {
+    walkItems(this.rootItems, (entry) => {
+      if (!["linked-value", "linked-list"].includes(entry.type)) return;
+      // CTRPF移植時はここを「メニューを開いた瞬間のゲームメモリ読取」に置き換える。
+      // 読取失敗時は誤値を編集させないため disabled にする。
+      if (entry.linkedAvailable === false || !Number.isFinite(Number(entry.linkedValue))) {
+        entry.disabled = true;
+        return;
+      }
+      entry.disabled = false;
+      entry.value = entry.linkedValue;
+      entry.appliedValue = entry.linkedValue;
+    });
+  }
+
   open(now) {
     this.dialog = null;
+    this.holdAction = null;
+    this.syncLinkedItems();
     this.resetSelectionAnimation(now);
     this.animateTo(1, now);
   }
@@ -682,10 +729,12 @@ class CheatMenuModel {
 
   beginClose(now) {
     this.dialog = null;
+    this.holdAction = null;
     this.animateTo(0, now);
   }
 
   update(now) {
+    this.updateHoldAction(now);
     this.executeActiveCheckboxes(now);
     if (this.openTarget === 0 && this.openAmount(now) <= 0.001) this.visible = false;
     if (listboxExitComplete(this.inlineList, now)) this.inlineList = null;
@@ -699,15 +748,85 @@ class CheatMenuModel {
           this.applyAll(now);
           this.beginClose(now);
         }
+        else if (dialog.type === "apply-all") this.applyAll(now);
         else if (dialog.type === "revert-all") this.discardAll();
+        else if (dialog.type === "toggle-action-hotkey" && dialog.item) this.executeToggleAction(dialog.item, now);
       }
     }
   }
 
   executeActiveCheckboxes(now) {
     walkItems(this.rootItems, (entry) => {
-      if (entry.type === "checkbox" && entry.appliedValue === true) this.execute(entry, now);
+      if (entry.type === "checkbox" && entry.appliedValue === true && entry.simulateTick) this.execute(entry, now);
     });
+  }
+
+  setCheckboxEffect(entry, active, now = 0) {
+    if (!entry || entry.type !== "checkbox" || !entry.effectKind) return false;
+    const next = Boolean(active);
+    if (entry.effectActive === next) return false;
+    entry.effectActive = next;
+    entry.effectChangeCount = (entry.effectChangeCount || 0) + 1;
+    entry.lastEffectChangedAt = now;
+    this.execute(entry, now);
+    return true;
+  }
+
+  commitHotkeyValue(entry, value, now = 0) {
+    const changed = entry.appliedValue !== value;
+    entry.value = value;
+    entry.appliedValue = value;
+    if (["linked-value", "linked-list"].includes(entry.type)) entry.linkedValue = value;
+    // メニュー外のホットキー入力UIには X 適用操作がないため、確定をそのまま適用として扱う。
+    if (changed) this.execute(entry, now);
+    return changed;
+  }
+
+  executeToggleAction(entry, now = 0) {
+    this.execute(entry, now);
+    entry.value = false;
+    entry.appliedValue = false;
+    entry.executionFeedbackUntil = now + TOGGLE_ACTION.feedbackDuration;
+    this.emit("ACTION", `${entry.label}を実行しました`);
+    return true;
+  }
+
+  holdActionProgress(now) {
+    if (!this.holdAction) return null;
+    return {
+      key: this.holdAction.key,
+      progress: clamp((now - this.holdAction.startedAt) / MENU.holdDuration, 0, 1),
+      label: this.holdAction.key === "x" ? "X 全項目適用" : "L 全項目戻し"
+    };
+  }
+
+  beginHoldAction(key, now) {
+    if (!["x", "l"].includes(key) || this.dirtyCount() === 0) return false;
+    this.holdAction = { key, startedAt: now };
+    return true;
+  }
+
+  triggerLongHold(key, now) {
+    this.holdAction = null;
+    if (key === "x") return this.openDialog("apply-all", now);
+    if (key === "l") return this.openDialog("revert-all", now);
+    return false;
+  }
+
+  updateHoldAction(now) {
+    if (!this.holdAction) return false;
+    if (now - this.holdAction.startedAt < MENU.holdDuration) return false;
+    return this.triggerLongHold(this.holdAction.key, now);
+  }
+
+  finishHoldAction(key, now) {
+    if (!this.holdAction || this.holdAction.key !== key) return false;
+    const elapsed = now - this.holdAction.startedAt;
+    this.holdAction = null;
+    if (elapsed >= MENU.holdDuration) return this.triggerLongHold(key, now);
+    if (key === "x") this.applyItem(this.selectedItem(), now);
+    else if (key === "l") this.discardItem(this.selectedItem());
+    return true;
   }
 
   dirtyCount() {
@@ -718,12 +837,29 @@ class CheatMenuModel {
 
   commitItem(entry, now = 0) {
     if (!isDirty(entry)) return false;
-    const previousAppliedValue = entry.appliedValue;
-    if (Object.hasOwn(entry, "value")) entry.appliedValue = entry.value;
+    const hasValue = Object.hasOwn(entry, "value");
+    const valueChanged = hasValue && entry.value !== entry.appliedValue;
+    if (hasValue) entry.appliedValue = entry.value;
     entry.appliedHotkey = entry.hotkey;
-    if (entry.type === "checkbox" && previousAppliedValue !== entry.appliedValue) {
+
+    if (entry.type === "toggle-action" && valueChanged) {
+      if (entry.appliedValue === true) this.executeToggleAction(entry, now);
+    }
+    else if (entry.type === "checkbox" && valueChanged) {
+      if (entry.effectKind) {
+        // パッチ/ToggledEffect系のCTRPF実装でも同じ順序にする:
+        // ON適用時に束縛なしなら効果ON、束縛ありならアームのみ、OFF適用時は必ず効果OFF。
+        this.setCheckboxEffect(entry, entry.appliedValue === true && entry.appliedHotkey === "なし", now);
+      }
       this.emit(entry.appliedValue ? "CHEAT ENABLED" : "CHEAT DISABLED", entry.label);
     }
+    else if (valueChanged && ["value", "slider", "list", "linked-value", "linked-list"].includes(entry.type)) {
+      if (["linked-value", "linked-list"].includes(entry.type)) entry.linkedValue = entry.appliedValue;
+      this.execute(entry, now);
+    }
+
+    // ホットキー設定だけを適用した場合は effectActive に触れない。
+    // これはCTRPF側でも「束縛変更」と「効果のON/OFF」を分離するための契約。
     return true;
   }
 
@@ -740,20 +876,28 @@ class CheatMenuModel {
     return count;
   }
 
+  discardItem(entry) {
+    if (!entry || !isDirty(entry)) return false;
+    if (Object.hasOwn(entry, "value")) entry.value = entry.appliedValue;
+    entry.hotkey = entry.appliedHotkey;
+    return true;
+  }
+
   discardAll() {
     let count = 0;
     walkItems(this.rootItems, (entry) => {
-      if (!isDirty(entry)) return;
-      if (Object.hasOwn(entry, "value")) entry.value = entry.appliedValue;
-      entry.hotkey = entry.appliedHotkey;
-      count++;
+      if (this.discardItem(entry)) count++;
     });
     return count;
   }
 
-  openDialog(type, now) {
+  openDialog(type, now, item = null) {
     if (this.dialog) return false;
     this.dialog = createDialog(type, now);
+    if (this.dialog && item) {
+      this.dialog.item = item;
+      if (type === "toggle-action-hotkey") this.dialog.title = `${item.label}を実行しますか？`;
+    }
     return Boolean(this.dialog);
   }
 
@@ -763,6 +907,7 @@ class CheatMenuModel {
   }
 
   changeValue(entry, direction, now) {
+    if (!entry || entry.disabled) return false;
     const decimals = entry.format === "float" ? 10 : 1;
     const next = clamp(Math.round((entry.value + direction * entry.step) * decimals) / decimals, entry.minimum, entry.maximum);
     entry.value = next;
@@ -810,34 +955,52 @@ class CheatMenuModel {
 
   activateSelected(now) {
     const entry = this.selectedItem();
+    if (!entry || entry.disabled) return false;
     this.activationBounceStartedAt = now;
     if (entry.type === "folder") {
       this.frames.push({ title: entry.label, items: entry.children, selection: 0 });
       this.resetSelectionAnimation(now);
     }
-    else if (entry.type === "checkbox") entry.value = !entry.value;
+    else if (entry.type === "checkbox" || entry.type === "toggle-action") entry.value = !entry.value;
     else if (entry.type === "action") this.runAction(entry, now);
-    else if (entry.type === "list") this.inlineList = {
+    else if (entry.type === "list" || entry.type === "linked-list") this.inlineList = {
       item: entry, index: entry.value,
       ...createListboxAnimation(now, entry.value, entry.options.length, LISTBOX.inlineVisibleRows)
     };
-    else if (entry.type === "value") this.openNumeric(entry);
+    else if (entry.type === "value" || entry.type === "linked-value") this.openNumeric(entry);
     else if (entry.type === "slider") this.openSlider(entry);
+    return true;
   }
 
   activateHotkeyItem(entry, now) {
+    if (!entry || entry.disabled) return false;
     if (entry.type === "checkbox") {
-      entry.value = !entry.value;
-      entry.appliedValue = entry.value;
-      this.emit(entry.value ? "CHEAT ENABLED" : "CHEAT DISABLED", entry.label);
+      if (entry.appliedValue !== true || !entry.effectKind) return false;
+      // CTRPF移植時もホットキーでは項目の applied を反転させない。
+      // 反転対象は関数内の効果状態だけで、項目OFFなら発火自体を無視する。
+      return this.setCheckboxEffect(entry, !entry.effectActive, now);
     }
-    else if (entry.type === "action") this.runAction(entry, now);
-    else if (entry.type === "list") {
+    if (entry.type === "toggle-action") {
+      return this.openDialog("toggle-action-hotkey", now, entry);
+    }
+    if (entry.type === "action") {
+      this.runAction(entry, now);
+      return true;
+    }
+    if (entry.type === "list" || entry.type === "linked-list") {
       this.openListbox("top", entry.label, entry.options, "hotkey-item", entry.value, now);
       this.overlay.item = entry;
+      return true;
     }
-    else if (entry.type === "value") this.openNumeric(entry, true);
-    else if (entry.type === "slider") this.openSlider(entry, true);
+    if (entry.type === "value" || entry.type === "linked-value") {
+      this.openNumeric(entry, true);
+      return true;
+    }
+    if (entry.type === "slider") {
+      this.openSlider(entry, true);
+      return true;
+    }
+    return false;
   }
 
   releaseInactiveHotkeys() {
@@ -854,8 +1017,8 @@ class CheatMenuModel {
     let triggered = false;
     walkItems(this.rootItems, (entry) => {
       if (entry.type === "folder" || this.activeHotkeyItems.has(entry.id) || !hotkeyMatches(entry.appliedHotkey, this.heldControls)) return;
+      if (!this.activateHotkeyItem(entry, now)) return;
       this.activeHotkeyItems.add(entry.id);
-      this.activateHotkeyItem(entry, now);
       triggered = true;
     });
     return triggered;
@@ -863,7 +1026,7 @@ class CheatMenuModel {
 
   openHotkeyPicker(now) {
     const entry = this.selectedItem();
-    if (!entry || entry.type === "folder") return;
+    if (!entry || entry.type === "folder" || entry.disabled) return;
     this.overlay = {
       type: "hotkey-capture", screen: "bottom", item: entry, phase: "arming", capturedButtons: [], startedAt: now
     };
@@ -910,7 +1073,7 @@ class CheatMenuModel {
     overlay.column = Math.min(overlay.column, columns - 1);
   }
 
-  activateNumericKey(key) {
+  activateNumericKey(key, now = 0) {
     const overlay = this.overlay;
     const entry = overlay.item;
     if (!numericKeyEnabled(overlay, key)) return false;
@@ -930,8 +1093,9 @@ class CheatMenuModel {
       let value = overlay.mode === "hex" ? Number.parseInt(overlay.buffer, 16) : Number(overlay.buffer);
       if (!Number.isFinite(value)) value = entry.minimum;
       const decimals = entry.format === "float" ? 10 : 1;
-      entry.value = Math.round(clamp(value, entry.minimum, entry.maximum) * decimals) / decimals;
-      if (overlay.applyOnConfirm) entry.appliedValue = entry.value;
+      const confirmedValue = Math.round(clamp(value, entry.minimum, entry.maximum) * decimals) / decimals;
+      if (overlay.applyOnConfirm) this.commitHotkeyValue(entry, confirmedValue, now);
+      else entry.value = confirmedValue;
       this.overlay = null;
     }
     return true;
@@ -1010,8 +1174,7 @@ class CheatMenuModel {
       else if (key === "a") {
         if (overlay.onConfirm === "hotkey") overlay.item.hotkey = overlay.options[overlay.index];
         else if (overlay.onConfirm === "hotkey-item") {
-          overlay.item.value = overlay.index;
-          overlay.item.appliedValue = overlay.index;
+          this.commitHotkeyValue(overlay.item, overlay.index, now);
           this.emit("SELECTED", `${overlay.options[overlay.index]}を選択しました`);
         }
         else this.emit("SELECTED", `${overlay.options[overlay.index]}を選択しました`);
@@ -1025,8 +1188,8 @@ class CheatMenuModel {
       else if (key === "up") overlay.value = clamp(overlay.value + overlay.item.step * 5, overlay.item.minimum, overlay.item.maximum);
       else if (key === "down") overlay.value = clamp(overlay.value - overlay.item.step * 5, overlay.item.minimum, overlay.item.maximum);
       else if (key === "a") {
-        overlay.item.value = overlay.value;
-        if (overlay.applyOnConfirm) overlay.item.appliedValue = overlay.value;
+        if (overlay.applyOnConfirm) this.commitHotkeyValue(overlay.item, overlay.value, now);
+        else overlay.item.value = overlay.value;
         this.overlay = null;
       }
       else if (key === "b") this.overlay = null;
@@ -1035,7 +1198,7 @@ class CheatMenuModel {
     if (overlay.type === "numeric") {
       const keys = numericKeys(overlay.mode, overlay.item.format === "float");
       if (["up", "down", "left", "right"].includes(key)) this.moveGrid(overlay, key, keys);
-      else if (key === "a") this.activateNumericKey(keys[overlay.row][overlay.column]);
+      else if (key === "a") this.activateNumericKey(keys[overlay.row][overlay.column], now);
       else if (key === "b") this.overlay = null;
       return;
     }
@@ -1076,6 +1239,7 @@ class CheatMenuModel {
     }
     if (!this.visible && !this.overlay && !this.inlineList && pressed && !repeated && this.triggerAppliedHotkeys(now)) return;
     if (!pressed) {
+      if ((key === "x" || key === "l") && this.finishHoldAction(key, now)) return;
       if (key === "up" || key === "down") this.selectionBoundaryBlockedDirection = 0;
       return;
     }
@@ -1094,10 +1258,9 @@ class CheatMenuModel {
       if (this.frames.length > 1) { this.frames.pop(); this.resetSelectionAnimation(now); }
       else this.close(now);
     }
-    else if (key === "x" && !repeated) this.applyItem(this.selectedItem(), now);
-    else if (key === "l" && this.dirtyCount() > 0) this.openDialog("revert-all", now);
+    else if ((key === "x" || key === "l") && !repeated) this.beginHoldAction(key, now);
     else if (key === "y") this.openHotkeyPicker(now);
-    else if ((key === "left" || key === "right") && ["value", "slider"].includes(this.selectedItem().type)) this.changeValue(this.selectedItem(), key === "right" ? 1 : -1, now);
+    else if ((key === "left" || key === "right") && ["value", "slider", "linked-value"].includes(this.selectedItem().type)) this.changeValue(this.selectedItem(), key === "right" ? 1 : -1, now);
   }
 
   selectOverlayCell(row, column, updateSelection = true, now = 0) {
@@ -1112,7 +1275,7 @@ class CheatMenuModel {
 
 const CTRPFUiModel = Object.freeze({
   CHAT_KANJI_MESSAGES,
-  SCREEN, NOTICE, MENU, CONTROL_REPEAT, LISTBOX, TEXT_KEYBOARD, DIALOG, CLOSE_DIALOG_OPTIONS, DIALOG_DEFINITIONS, HOTKEYS, HOTKEY_BUTTON_ORDER, HOTKEY_BUTTON_LABELS, LONG_LIST_OPTIONS,
+  SCREEN, NOTICE, MENU, FRAME, CONTROL_REPEAT, TOGGLE_ACTION, LISTBOX, TEXT_KEYBOARD, DIALOG, CLOSE_DIALOG_OPTIONS, DIALOG_DEFINITIONS, HOTKEYS, HOTKEY_BUTTON_ORDER, HOTKEY_BUTTON_LABELS, LONG_LIST_OPTIONS,
   clamp, easeOutCubic, mix, formatHotkeyButtons, hotkeyButtons, hotkeyMatches, NotificationTimeline, ControlRepeater,
   createMenuTree, isDirty, walkItems, formatValue, numericKeys, numericKeyEnabled,
   selectionPulse, selectionOutlinePulse, listboxAmount, listboxScrollPosition, textKeyboardAmount, dialogAmount, textKeys, textKeyLayout, textKeyEnabled,
