@@ -239,7 +239,7 @@ test("bitmap subset contains every glyph used by menu labels and descriptions", 
     "数値入力 DEC HEX MIN MAX 数値スライダー STEP 左右 取消 符号 消 空白 かな カナ 濁点 半濁点 小字 改行 けってい 五十音キーボード QWERTY KEYBOARD",
     "ぁぃぅぇぉっゃゅょゎがぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽ",
     "ァィゥェォッャュョヮガギグゲゴザジズゼゾダヂヅデドバビブベボパピプペポヴ",
-    "ACTION SELECTED 名前変更を呼び出しました ボタンを全て離す入力待ち中",
+    "ACTION SELECTED 名前変更を呼び出しました ボタンを全て離す入力待ち中 FAVORITES FAVORITE REMOVE ADD NO ITEMS",
     ...HOTKEYS,
     ...numericKeys("dec", true).flat(),
     ...numericKeys("hex", false).flat(),
@@ -544,6 +544,60 @@ test("menu selection eases between rows, pulses gently, and value changes bounce
   assert.equal(menu.selectionBounceOffset(760), 0);
   menu.handle("left", 800);
   assert.ok(menu.selectionBounceOffset(850) < 0);
+});
+
+test("favorites are reference-based, reversible, restorable, and accessible with R/SELECT", () => {
+  const emitted = [];
+  const menu = new CheatMenuModel((title, message) => emitted.push({ title, message }));
+  menu.open(0);
+  menu.currentFrame().selection = 1;
+  const source = menu.selectedItem();
+  assert.equal(source.label, "歩行速度アップ");
+  assert.equal(source.favoriteKey, "歩行速度アップ");
+  assert.equal(menu.isFavorite(source), false);
+
+  menu.handle("r", 100);
+  assert.equal(menu.isFavorite(source), true);
+  assert.deepEqual(menu.favoriteKeysArray(), [source.favoriteKey]);
+  assert.ok(emitted.some((notice) => notice.title === "FAVORITES" && /ADD/.test(notice.message)));
+
+  menu.handle("select", 120);
+  assert.equal(menu.currentFrame().title, "FAVORITES");
+  assert.equal(menu.currentFrame().kind, "favorites");
+  assert.equal(menu.currentFrame().items.length, 1);
+  assert.equal(menu.currentFrame().items[0], source, "favorite list must reference the original item");
+
+  menu.handle("a", 140);
+  assert.equal(source.value, true, "editing from favorites changes the original item");
+  assert.equal(isDirty(source), true);
+
+  menu.handle("r", 160);
+  assert.equal(menu.isFavorite(source), false);
+  assert.equal(menu.currentFrame().title, "ROOT", "removing the last favorite returns to the previous frame");
+
+  assert.equal(menu.restoreFavorites([source.favoriteKey, "missing/key"], 180), 1);
+  assert.equal(menu.isFavorite(source), true);
+  menu.handle("select", 200);
+  assert.equal(menu.currentFrame().items[0], source);
+  menu.handle("b", 220);
+  assert.equal(menu.currentFrame().title, "ROOT");
+
+  const player = menu.rootItems.find((entry) => entry.label === "プレイヤー");
+  const wallClip = player.children.find((entry) => entry.label === "壁抜け");
+  assert.equal(wallClip.favoriteKey, "プレイヤー/壁抜け");
+
+  const empty = new CheatMenuModel((title, message) => emitted.push({ title, message }));
+  empty.open(0);
+  empty.handle("select", 10);
+  assert.equal(empty.currentFrame().title, "ROOT");
+  assert.ok(emitted.some((notice) => notice.title === "FAVORITES" && notice.message === "NO ITEMS"));
+
+  assert.match(appSource, /gohan-menu-favorites-v1/);
+  assert.match(appSource, /localStorage\.setItem/);
+  assert.match(appSource, /menu\.isFavorite\(entry\).*"F"/s);
+  assert.match(appSource, /SELECT:FAVORITES/);
+  assert.match(html, /<b>R<\/b> お気に入り切替/);
+  assert.match(html, /<b>SELECT<\/b> お気に入り一覧/);
 });
 
 test("pressing A gives the selected item a small 80ms horizontal bounce", () => {
