@@ -92,6 +92,16 @@ function topOverlayHorizontalPosition(menuAmount, width, openX) {
   return Math.round(mix((SCREEN.width - width) / 2, openX, menuAmount));
 }
 
+function dialogHorizontalPosition(dialog, dialogAmountValue, menuAmountValue) {
+  const width = 224;
+  const centeredX = (SCREEN.width - width) / 2;
+  const menuOpenX = 168;
+  const targetX = dialog?.type === "toggle-action-hotkey"
+    ? mix(centeredX, menuOpenX, menuAmountValue)
+    : menuOpenX;
+  return Math.round(mix(targetX + 24, targetX, dialogAmountValue));
+}
+
 function roundedRect(context, x, y, width, height, radius) {
   const r = Math.min(radius, width / 2, height / 2);
   context.beginPath();
@@ -361,7 +371,7 @@ function boot() {
     const amount = dialogAmount(dialog, now);
     if (amount <= 0) return;
     const width = 224, height = 90;
-    const x = Math.round(mix(192, 168, amount)), y = 75;
+    const x = dialogHorizontalPosition(dialog, amount, menu.openAmount(now)), y = 75;
     top.save();
     top.globalAlpha = amount;
     top.fillStyle = "rgba(7, 9, 8, .9)"; top.fillRect(x, y, width, height);
@@ -599,6 +609,8 @@ function boot() {
   }
 
   bottomCanvas.addEventListener("pointerdown", (event) => {
+    // 下画面の操作可能UIが表示中はタッチをUIが占有する。
+    // CTRPF移植時はこのタッチをゲーム本体へ透過させない。UI自身のタッチ操作だけを処理する。
     touchedTextKey = null;
     const point = canvasPoint(event, bottomCanvas);
     const region = bottomHitRegions.find((entry) => point.x >= entry.x && point.x <= entry.x + entry.width && point.y >= entry.y && point.y <= entry.y + entry.height);
@@ -627,7 +639,7 @@ function boot() {
   topCanvas.addEventListener("pointerdown", (event) => {
     const point = canvasPoint(event, topCanvas);
     const region = topHitRegions.find((entry) => point.x >= entry.x && point.x <= entry.x + entry.width && point.y >= entry.y && point.y <= entry.y + entry.height);
-    if (!menu.visible || menu.overlay || menu.inlineList) return;
+    if (!menu.visible || menu.dialog || menu.overlay || menu.inlineList) return;
     if (!region) return;
     menu.currentFrame().selection = region.itemIndex;
     menu.handle("a", performance.now(), true);
@@ -638,7 +650,7 @@ function boot() {
 
 const CTRPFPreviewCore = Object.freeze({
   measureBitmapText, bitmapTextCursorAt, drawBitmapText, trimBitmapText, wrapBitmapText,
-  listboxVerticalPosition, textKeyboardGeometry, topOverlayHorizontalPosition, isNumericEntry, isNumericKeyLabel
+  listboxVerticalPosition, textKeyboardGeometry, topOverlayHorizontalPosition, dialogHorizontalPosition, isNumericEntry, isNumericKeyLabel
 });
 if (typeof module !== "undefined" && module.exports) module.exports = { ...require("./ui-model.js"), ...CTRPFPreviewCore };
 if (typeof window !== "undefined") window.CTRPFPreviewCore = CTRPFPreviewCore;
