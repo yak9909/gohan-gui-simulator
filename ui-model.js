@@ -734,7 +734,9 @@ class CheatMenuModel {
   }
 
   open(now) {
-    this.dialog = null;
+    // メニュー外ホットキーで開いたトグル型アクション確認は、メニューを開いても維持する。
+    // 描画側が menu.openAmount() に追従させることで、中央からメニュー右側へそのまま退避する。
+    if (this.dialog?.type !== "toggle-action-hotkey") this.dialog = null;
     this.holdAction = null;
     this.syncLinkedItems();
     this.resetSelectionAnimation(now);
@@ -756,7 +758,9 @@ class CheatMenuModel {
   }
 
   beginClose(now) {
-    this.dialog = null;
+    // トグル型アクション確認はメニュー本体とは独立したモーダルUIなので、
+    // メニューを閉じても破棄せず、描画側で中央位置へ戻す。
+    if (this.dialog?.type !== "toggle-action-hotkey") this.dialog = null;
     this.holdAction = null;
     this.animateTo(0, now);
   }
@@ -1255,7 +1259,24 @@ class CheatMenuModel {
     else if (key === "b") closeListbox(list, now);
   }
 
+  gameInputCaptureState() {
+    // CTRPF移植時の入力占有契約:
+    // 操作可能なUI（メニュー本体、ダイアログ、リスト、数値/スライダー/文字入力等）が表示中は、
+    // UIがDPad/A/B/X/Y/L/R/ZL/ZR等を消費し、ゲーム本体へは渡さない。
+    // 例外としてゲーム側で許可するのはスライドパッドとメニュー開閉操作。
+    // 下画面UIが表示中はタッチもUIが占有し、ゲーム本体へは渡さない
+    // （UI自身のタッチ操作は有効なまま）。
+    const active = Boolean(this.visible || this.dialog || this.overlay || this.inlineList);
+    return {
+      active,
+      blockGameButtons: active,
+      blockGameTouch: Boolean(this.overlay && this.overlay.screen === "bottom")
+    };
+  }
+
   handle(key, now, pressed = true, repeated = false) {
+    // この入力経路はUI側のモーダル入力。gameInputCaptureState() が active の間、
+    // ここで扱うボタン入力はゲーム側へパススルーしない前提でCTRPFへ移植する。
     if (pressed && !repeated) this.heldControls.add(key);
     else if (!pressed) this.heldControls.delete(key);
     if (this.overlay && this.overlay.type === "hotkey-capture") {
