@@ -314,9 +314,9 @@ function createMenuTree() {
       item("action", "下画面リスト", "下画面へ汎用リストボックスを開きます。", { action: "bottom-listbox" }),
       item("action", "文字キーボード", "五十音順とQWERTYを切り替えられます。", { action: "text-keyboard" }),
       item("action", "小型文字キーボード", "小さい文字キーボードを開きます。", { action: "compact-text-keyboard" }),
-      item("linked-value", "連動型数値", "メニューを開いた時にゲーム側の現在値を読み、適用時に書き戻す型の見本です。", { format: "dec", value: 1250, linkedValue: 1250, linkedAvailable: true, minimum: 0, maximum: 99999, step: 50 }),
-      item("linked-list", "連動型リスト", "メニューを開いた時にゲーム側の現在値を読み、適用時に書き戻すリスト型の見本です。", { options: ["晴れ", "雨", "雪"], value: 0, linkedValue: 0, linkedAvailable: true }),
-      item("toggle-action", "トグル型アクション", "ONにして適用すると1回実行してOFFへ戻ります。ホットキー実行では確認します。", { value: false })
+      item("linked-value", "連動型数値", "メニューを開いた時にゲームの値を取得し、適用時に設定する連動型です。", { format: "dec", value: 1250, linkedValue: 1250, linkedAvailable: true, minimum: 0, maximum: 99999, step: 50 }),
+      item("linked-list", "連動型リスト", "メニューを開いた時にゲームの値を取得し、適用時に設定する連動型です。", { options: ["晴れ", "雨", "雪"], value: 0, linkedValue: 0, linkedAvailable: true }),
+      item("toggle-action", "トグル型アクション", "ONにして適用すると一度実行してOFFへ戻ります。ホットキーでは確認します。", { value: false })
     ] }),
     item("list", "大量リスト", "多数のリスト項目をインライン表示してスクロールを確認します。", { options: [...LONG_LIST_OPTIONS], value: 0 }),
     item("folder", "スクロールテスト", "多数のチート項目を表示してスクロールを確認します。", { children: scrollTestItems }),
