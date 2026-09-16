@@ -170,8 +170,7 @@ function boot() {
   function itemIcon(entry) {
     if (entry.type === "folder") return ">";
     if (entry.type === "checkbox") return entry.value ? "[X]" : "[ ]";
-    if (entry.type === "toggle-action") return "!";
-    if (entry.type === "action") return "A";
+    if (entry.type === "toggle-action" || entry.type === "action") return "A";
     if (entry.type === "linked-list" || entry.type === "linked-value") return "S";
     if (entry.type === "list") return "L";
     return "V";
@@ -179,13 +178,11 @@ function boot() {
 
   function itemIconColor(entry, fallback) {
     if (entry.type === "folder") return "#63e4a4";
-    if (entry.type === "toggle-action") return "#ff8a7a";
     if (entry.type === "linked-list" || entry.type === "linked-value") return "#5cc8ff";
     return fallback;
   }
 
   function itemTypeBadge(entry) {
-    if (entry.type === "toggle-action") return { text: "ONCE", color: "#ff8a7a" };
     if (entry.type === "linked-list" || entry.type === "linked-value") return { text: "SYNC", color: "#5cc8ff" };
     return null;
   }
@@ -261,8 +258,7 @@ function boot() {
       const valueWidth = value ? measureBitmapText(valueFont, value) : 0;
       const labelWidth = MENU.width - 33 - valueWidth;
       drawBitmapText(top, font, trimBitmapText(font, entry.label, labelWidth), menuX + 27 + itemOffset, y, color);
-      const valueColor = entry.type === "toggle-action" && (entry.executionFeedbackUntil || 0) > now ? "#ff7b72" : color;
-      if (value) drawBitmapText(top, valueFont, value, menuX + MENU.width - 8 - valueWidth + itemOffset, y, valueColor);
+      if (value) drawBitmapText(top, valueFont, value, menuX + MENU.width - 8 - valueWidth + itemOffset, y, color);
       if (entry.type !== "folder" && entry.hotkey !== "なし") drawBitmapText(top, font, "H", menuX + 147 + itemOffset, y + 8, "#78a9ff");
       if (!entry.disabled && y >= 25 && y <= 204) topHitRegions.push({ x: menuX + 4, y: y - 3, width: MENU.width - 10, height: 16, itemIndex: index });
     }
