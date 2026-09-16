@@ -745,7 +745,12 @@ class CheatMenuModel {
 
   close(now) {
     if (this.inlineList) closeListbox(this.inlineList, now);
-    if (this.overlay && this.overlay.type === "listbox") closeListbox(this.overlay, now);
+    if (this.overlay && this.overlay.type === "listbox") {
+      // 上画面リストはメニュー本体とは独立した操作UIとして維持する。
+      // メニューを閉じる時はリスト自体を閉じず、描画側で openAmount() に追従して中央へ戻す。
+      // 下画面リストだけは従来どおりメニュー閉鎖と同時に退場させる。
+      if (this.overlay.screen === "bottom") closeListbox(this.overlay, now);
+    }
     else if (this.overlay && this.overlay.type === "text") closeTextKeyboard(this.overlay, now);
     else if (this.overlay && this.overlay.screen === "bottom") closeBottomOverlay(this.overlay, now);
     else this.overlay = null;
