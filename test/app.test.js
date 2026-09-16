@@ -48,6 +48,7 @@ const {
   listboxVerticalPosition,
   textKeyboardGeometry,
   topOverlayHorizontalPosition,
+  dialogHorizontalPosition,
   isNumericEntry,
   isNumericKeyLabel
 } = require("../app.js");
@@ -881,18 +882,60 @@ test("linked items keep visual markers while toggle-actions use normal action st
   hotkeyAction.hotkey = "R";
   hotkeyMenu.applyItem(hotkeyAction, 100);
   hotkeyMenu.handle("r", 110, true);
-  assert.equal(hotkeyMenu.dialog.type, "toggle-action-hotkey");
-  assert.match(hotkeyMenu.dialog.title, /トグル型アクション/);
-  hotkeyMenu.handle("a", 120);
-  hotkeyMenu.update(280);
+  const hotkeyDialog = hotkeyMenu.dialog;
+  assert.equal(hotkeyDialog.type, "toggle-action-hotkey");
+  assert.match(hotkeyDialog.title, /トグル型アクション/);
+  assert.equal(dialogHorizontalPosition(hotkeyDialog, 1, 0), 88, "closed-menu action confirmation is centered");
+  assert.equal(dialogHorizontalPosition(hotkeyDialog, 1, 0.5), 128, "dialog follows the menu opening transition");
+  assert.equal(dialogHorizontalPosition(hotkeyDialog, 1, 1), 168, "open-menu action confirmation sits to the right");
+  hotkeyMenu.open(120);
+  assert.equal(hotkeyMenu.dialog, hotkeyDialog, "opening the menu must not replace the hotkey confirmation");
+  hotkeyMenu.handle("a", 300);
+  hotkeyMenu.update(460);
   assert.equal(hotkeyAction.executionCount, 1);
-  hotkeyMenu.handle("r", 281, false);
+  hotkeyMenu.handle("r", 461, false);
 
   assert.match(appSource, /text: "SYNC"/);
   assert.doesNotMatch(appSource, /text: "ONCE"/);
   assert.match(appSource, /entry\.type === "toggle-action" \|\| entry\.type === "action"\) return "A"/);
   assert.doesNotMatch(appSource, /entry\.type === "toggle-action"\) return "#ff8a7a"/);
   assert.match(appSource, /"#ff6b6b"/, "checkbox X is rendered in a reddish color");
+});
+
+test("operable UI captures game input while preserving circle-pad and menu-toggle pass-through contract", () => {
+  const menu = new CheatMenuModel();
+  assert.deepEqual(menu.gameInputCaptureState(), {
+    active: false,
+    blockGameButtons: false,
+    blockGameTouch: false
+  });
+
+  menu.open(0);
+  assert.deepEqual(menu.gameInputCaptureState(), {
+    active: true,
+    blockGameButtons: true,
+    blockGameTouch: false
+  });
+
+  menu.openListbox("bottom", "TEST", ["A", "B"], null, 0, 200);
+  assert.deepEqual(menu.gameInputCaptureState(), {
+    active: true,
+    blockGameButtons: true,
+    blockGameTouch: true
+  });
+
+  const topOnly = new CheatMenuModel();
+  topOnly.openListbox("top", "TEST", ["A", "B"], null, 0, 300);
+  assert.deepEqual(topOnly.gameInputCaptureState(), {
+    active: true,
+    blockGameButtons: true,
+    blockGameTouch: false
+  });
+
+  assert.match(modelSource, /スライドパッドとメニュー開閉操作/);
+  assert.match(modelSource, /下画面UIが表示中はタッチもUIが占有/);
+  assert.match(appSource, /ゲーム本体へ透過させない/);
+  assert.match(appSource, /!menu\.visible \|\| menu\.dialog \|\| menu\.overlay \|\| menu\.inlineList/);
 });
 
 test("action items run immediately when A is pressed", () => {
