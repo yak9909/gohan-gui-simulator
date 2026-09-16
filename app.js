@@ -146,6 +146,16 @@ function boot() {
   bottom.imageSmoothingEnabled = false;
   const timeline = new NotificationTimeline();
   const menu = new CheatMenuModel((title, message) => timeline.add(performance.now(), title, message));
+  const FAVORITES_STORAGE_KEY = "gohan-menu-favorites-v1";
+  try {
+    menu.restoreFavorites(JSON.parse(window.localStorage.getItem(FAVORITES_STORAGE_KEY) || "[]"));
+  } catch {
+    menu.restoreFavorites([]);
+  }
+  function persistFavorites() {
+    try { window.localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(menu.favoriteKeysArray())); }
+    catch { /* localStorage unavailable: keep favorites for this session only. */ }
+  }
   const controls = new ControlRepeater((key, now, pressed, repeated) => menu.handle(key, now, pressed, repeated));
   const activeCount = document.getElementById("activeCount");
   const dirtyCount = document.getElementById("dirtyCount");
@@ -263,6 +273,7 @@ function boot() {
       const itemOffset = selected ? Math.round(activationOffset) : 0;
       const color = entry.disabled ? "#525b54" : isDirty(entry) ? "#ffd166" : selected ? "#ffffff" : "#aeb9b1";
       drawItemIcon(entry, menuX + 8 + itemOffset, y, color);
+      if (menu.isFavorite(entry)) drawBitmapText(top, font, "F", menuX + 22 + itemOffset, y, "#ffd166");
       const value = formatValue(entry, now);
       const valueFont = isNumericEntry(entry) ? numericFont : font;
       const valueWidth = value ? measureBitmapText(valueFont, value) : 0;
@@ -279,7 +290,7 @@ function boot() {
     top.fillStyle = "rgba(21, 27, 23, .76)"; top.fillRect(menuX, 216, MENU.width - 2, 24);
     drawBitmapText(top, font, "A決定 X適用 Y HOTKEY", menuX + 6, 220, "#829087");
     drawBitmapText(top, font, `${changed}変更`, menuX + 6, 230, changed ? "#ffd166" : "#58635b");
-    drawBitmapText(top, font, "B戻る L変更戻し", menuX + 72, 230, "#829087");
+    drawBitmapText(top, font, "B戻る L戻し R FAV", menuX + 59, 230, "#829087");
     drawHoldProgress(menuX, now);
 
     if (menu.inlineList) drawInlineList(menuX, start, now);
@@ -322,7 +333,7 @@ function boot() {
     const entry = menu.selectedItem();
     const x = 168, y = 8, width = 224;
     const lines = wrapBitmapText(font, entry.description, width - 16).slice(0, 6);
-    const height = 35 + lines.length * 11;
+    const height = 46 + lines.length * 11;
     top.save();
     top.globalAlpha = amount;
     top.fillStyle = "rgba(10, 13, 11, .82)"; top.fillRect(x, y, width, height);
@@ -334,7 +345,9 @@ function boot() {
       const badgeWidth = measureBitmapText(font, badge.text);
       drawBitmapText(top, font, badge.text, x + width - 8 - badgeWidth, y + 18, badge.color);
     }
-    lines.forEach((line, index) => drawBitmapText(top, font, line, x + 8, y + 31 + index * 11, entry.disabled ? "#626b64" : "#c4cec7"));
+    drawBitmapText(top, font, menu.isFavorite(entry) ? "FAVORITE  R:REMOVE" : "R:ADD FAVORITE", x + 8, y + 29, menu.isFavorite(entry) ? "#ffd166" : "#8f9a92");
+    drawBitmapText(top, font, "SELECT:FAVORITES", x + 116, y + 29, "#8f9a92");
+    lines.forEach((line, index) => drawBitmapText(top, font, line, x + 8, y + 42 + index * 11, entry.disabled ? "#626b64" : "#c4cec7"));
     top.restore();
   }
 
@@ -558,8 +571,10 @@ function boot() {
 
   function pressControl(key, pressed = true) {
     const now = performance.now();
-    if (pressed) controls.press(key, now);
-    else controls.release(key, now);
+    if (pressed) {
+      controls.press(key, now);
+      if (key === "r") persistFavorites();
+    } else controls.release(key, now);
   }
 
   document.getElementById("addButton").addEventListener("click", addNotice);
