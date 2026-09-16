@@ -743,7 +743,6 @@ class CheatMenuModel {
     if (!isDirty(entry)) return false;
     const hasValue = Object.hasOwn(entry, "value");
     const valueChanged = hasValue && entry.value !== entry.appliedValue;
-    const previousAppliedValue = entry.appliedValue;
     if (hasValue) entry.appliedValue = entry.value;
     entry.appliedHotkey = entry.hotkey;
 
@@ -761,7 +760,6 @@ class CheatMenuModel {
 
     // ホットキー設定だけを適用した場合は effectActive に触れない。
     // これはCTRPF側でも「束縛変更」と「効果のON/OFF」を分離するための契約。
-    void previousAppliedValue;
     return true;
   }
 
