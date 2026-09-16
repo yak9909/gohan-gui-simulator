@@ -713,44 +713,108 @@ test("cheat menu eases in from the left and checkbox changes remain pending", ()
   assert.equal(isDirty(checkbox), false);
 });
 
-test("checkbox state changes notify once while enabled functions keep executing", () => {
+test("checkbox applied state and effect state are independent", () => {
   const emitted = [];
   const executed = [];
   const menu = new CheatMenuModel(
     (title, message) => emitted.push({ title, message }),
     (entry, now) => executed.push({ entry, now })
   );
-  menu.open(0);
-  menu.currentFrame().selection = 1;
-  const checkbox = menu.selectedItem();
-  menu.handle("a", 10);
-  menu.update(11);
-  assert.equal(executed.filter((call) => call.entry === checkbox).length, 0, "pending ON must not execute yet");
-  menu.handle("x", 20, true);
-  menu.handle("x", 21, false);
+  const playerFolder = menu.rootItems.find((entry) => entry.label === "プレイヤー");
+  const invincible = playerFolder.children.find((entry) => entry.label === "無敵モード");
+
+  invincible.value = true;
+  menu.applyItem(invincible, 10);
+  assert.equal(invincible.appliedValue, true);
+  assert.equal(invincible.effectActive, true, "without a hotkey, applying ON enables the effect");
+  assert.equal(executed.filter((call) => call.entry === invincible).length, 1);
+
+  invincible.hotkey = "L+A";
+  menu.applyItem(invincible, 20);
+  assert.equal(invincible.appliedHotkey, "L+A");
+  assert.equal(invincible.effectActive, true, "changing only the binding must preserve the current effect");
+
+  menu.handle("l", 30, true);
+  menu.handle("a", 31, true);
+  assert.equal(invincible.appliedValue, true, "hotkey must not change the item applied state");
+  assert.equal(invincible.value, true, "hotkey must not change the editable item state");
+  assert.equal(invincible.effectActive, false, "hotkey toggles only the effect");
+  menu.handle("a", 32, false);
+  menu.handle("l", 33, false);
+
+  invincible.value = false;
+  menu.applyItem(invincible, 40);
+  assert.equal(invincible.appliedValue, false);
+  assert.equal(invincible.effectActive, false, "applying OFF always disables the effect");
   assert.equal(emitted.filter((notice) => notice.title === "CHEAT ENABLED").length, 1);
-  menu.update(21);
-  menu.update(22);
-  assert.equal(executed.filter((call) => call.entry === checkbox).length, 2);
-  assert.equal(emitted.filter((notice) => notice.title === "CHEAT ENABLED").length, 1, "continuous execution must not repeat notifications");
-
-  menu.handle("a", 30);
-  menu.update(31);
-  assert.equal(executed.filter((call) => call.entry === checkbox).length, 3, "pending OFF keeps the applied function active");
-  menu.handle("x", 40, true);
-  menu.handle("x", 41, false);
   assert.equal(emitted.filter((notice) => notice.title === "CHEAT DISABLED").length, 1);
-  menu.update(41);
-  assert.equal(executed.filter((call) => call.entry === checkbox).length, 3);
 
-  const defaultMenu = new CheatMenuModel();
-  const defaultCheckbox = defaultMenu.rootItems[1];
-  defaultCheckbox.value = true;
-  defaultMenu.applyItem(defaultCheckbox, 50);
-  defaultMenu.update(51);
-  defaultMenu.update(52);
-  assert.equal(defaultCheckbox.executionCount, 2);
-  assert.equal(defaultCheckbox.lastExecutedAt, 52);
+  menu.handle("l", 50, true);
+  menu.handle("a", 51, true);
+  assert.equal(invincible.effectActive, false, "an OFF item ignores its hotkey");
+  menu.handle("a", 52, false);
+  menu.handle("l", 53, false);
+});
+
+test("bound checkbox applies as armed and the first hotkey press enables its effect", () => {
+  const menu = new CheatMenuModel();
+  const playerFolder = menu.rootItems.find((entry) => entry.label === "プレイヤー");
+  const wallClip = playerFolder.children.find((entry) => entry.label === "壁抜け");
+  wallClip.hotkey = "L+A";
+  wallClip.value = true;
+  menu.applyItem(wallClip, 10);
+
+  assert.equal(wallClip.appliedValue, true);
+  assert.equal(wallClip.effectActive, false, "bound ON applies as armed only");
+
+  menu.handle("l", 20, true);
+  menu.handle("a", 21, true);
+  assert.equal(wallClip.effectActive, true);
+  menu.handle("a", 22, true, true);
+  assert.equal(wallClip.effectActive, true, "held key repeat must not retrigger the chord");
+  menu.handle("a", 23, false);
+  menu.handle("a", 24, true);
+  assert.equal(wallClip.effectActive, false, "the next complete chord toggles the effect again");
+  menu.handle("a", 25, false);
+  menu.handle("l", 26, false);
+});
+
+test("only explicitly simulated tick checkboxes execute on every update", () => {
+  const executed = [];
+  const menu = new CheatMenuModel(() => {}, (entry, now) => executed.push({ entry, now }));
+  const shizue = menu.rootItems.find((entry) => entry.label === "しずえスキップ");
+  const walking = menu.rootItems.find((entry) => entry.label === "歩行速度アップ");
+
+  shizue.value = true;
+  walking.value = true;
+  menu.applyItem(shizue, 10);
+  menu.applyItem(walking, 10);
+  menu.update(11);
+  menu.update(12);
+
+  assert.equal(executed.filter((call) => call.entry === shizue).length, 2);
+  assert.equal(executed.filter((call) => call.entry === walking).length, 0);
+});
+
+test("value, slider, and list items execute their simulated apply only when the value is applied", () => {
+  const executed = [];
+  const menu = new CheatMenuModel(() => {}, (entry, now) => executed.push({ entry, now }));
+  const numericFolder = menu.rootItems.find((entry) => entry.label === "数値設定");
+  const bells = numericFolder.children.find((entry) => entry.label === "所持ベル");
+  const weather = menu.rootItems.find((entry) => entry.label === "天候");
+
+  bells.value += 100;
+  assert.equal(executed.length, 0);
+  menu.applyItem(bells, 10);
+  assert.equal(executed.filter((call) => call.entry === bells).length, 1);
+
+  weather.value = 1;
+  menu.applyItem(weather, 20);
+  assert.equal(executed.filter((call) => call.entry === weather).length, 1);
+
+  bells.hotkey = "R";
+  menu.applyItem(bells, 30);
+  assert.equal(executed.filter((call) => call.entry === bells).length, 1, "binding-only apply must not write the value again");
 });
 
 test("action items run immediately when A is pressed", () => {
@@ -1145,11 +1209,13 @@ test("hotkey capture records a unique chord until every held button is released"
   assert.equal(textKeys("abc")[1].join(""), "qwertyuiop");
 });
 
-test("applied hotkeys activate cheat items once per complete button chord", () => {
+test("applied hotkeys activate supported items once per complete button chord", () => {
   const emitted = [];
   const menu = new CheatMenuModel((title, message) => emitted.push({ title, message }));
-  const checkbox = menu.rootItems[1];
+  const playerFolder = menu.rootItems.find((entry) => entry.label === "プレイヤー");
+  const checkbox = playerFolder.children.find((entry) => entry.label === "壁抜け");
   checkbox.hotkey = "L+A";
+  checkbox.value = true;
   menu.applyItem(checkbox);
 
   assert.deepEqual(hotkeyButtons("A+L+A"), ["l", "a"]);
@@ -1157,20 +1223,19 @@ test("applied hotkeys activate cheat items once per complete button chord", () =
   assert.equal(hotkeyMatches("L+A", new Set(["l", "a", "b"])), false);
 
   menu.handle("l", 0, true);
-  assert.equal(checkbox.value, false);
+  assert.equal(checkbox.effectActive, false);
   menu.handle("a", 10, true);
-  assert.equal(checkbox.value, true);
-  assert.equal(checkbox.appliedValue, true, "hotkey activation applies immediately");
+  assert.equal(checkbox.effectActive, true);
+  assert.equal(checkbox.appliedValue, true, "hotkey activation keeps the item applied state unchanged");
   menu.handle("a", 20, true, true);
-  assert.equal(checkbox.value, true, "key repeat must not retrigger a held chord");
+  assert.equal(checkbox.effectActive, true, "key repeat must not retrigger a held chord");
   menu.handle("a", 30, false);
   menu.handle("a", 40, true);
-  assert.equal(checkbox.value, false, "the chord can trigger again after it is broken");
-  assert.equal(emitted.at(-1).title, "CHEAT DISABLED");
+  assert.equal(checkbox.effectActive, false, "the chord can trigger again after it is broken");
 
   menu.handle("a", 50, false);
   menu.handle("l", 60, false);
-  const action = menu.rootItems[2];
+  const action = menu.rootItems.find((entry) => entry.label === "セーブ実行");
   action.hotkey = "R";
   menu.applyItem(action);
   menu.handle("r", 70, true);
@@ -1183,4 +1248,5 @@ test("applied hotkeys activate cheat items once per complete button chord", () =
   menu.handle("x", 90, true);
   assert.equal(pending.value, before, "an unapplied hotkey setting must not run");
   menu.handle("x", 100, false);
+});
 });
