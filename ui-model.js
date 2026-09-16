@@ -20,6 +20,7 @@ const FRAME = Object.freeze({ fps: 30, interval: 1000 / 30 });
 const CONTROL_REPEAT = Object.freeze({ delay: 200, interval: 60 });
 const TOGGLE_ACTION = Object.freeze({ feedbackDuration: 800 });
 const LISTBOX = Object.freeze({ animationDuration: 180, scrollDuration: 100, inlineVisibleRows: 6, screenVisibleRows: 8 });
+const BOTTOM_OVERLAY = Object.freeze({ animationDuration: 180, backdropAlpha: 0.72 });
 const TEXT_KEYBOARD = Object.freeze({ animationDuration: 180, backdropAlpha: 0.38 });
 // Hardware action messages; conversion is performed only by the ACNL plugin.
 const CHAT_KANJI_MESSAGES = Object.freeze({
@@ -114,6 +115,32 @@ function closeListbox(listbox, now) {
 
 function listboxExitComplete(listbox, now) {
   return listbox && listbox.closing && now - listbox.animationStartedAt >= listbox.animationDuration;
+}
+
+function createBottomOverlayAnimation(now) {
+  return { animationFrom: 0, animationTarget: 1, animationStartedAt: now, animationDuration: BOTTOM_OVERLAY.animationDuration, closing: false };
+}
+
+function bottomOverlayAmount(overlay, now) {
+  if (!overlay || overlay.screen !== "bottom" || ["listbox", "text"].includes(overlay.type)) return 0;
+  if (overlay.animationDuration <= 0) return overlay.animationTarget;
+  return mix(overlay.animationFrom, overlay.animationTarget, easeOutCubic((now - overlay.animationStartedAt) / overlay.animationDuration));
+}
+
+function closeBottomOverlay(overlay, now) {
+  if (!overlay || overlay.screen !== "bottom" || ["listbox", "text"].includes(overlay.type) || overlay.closing) return false;
+  const current = bottomOverlayAmount(overlay, now);
+  overlay.animationFrom = current;
+  overlay.animationTarget = 0;
+  overlay.animationStartedAt = now;
+  overlay.animationDuration = BOTTOM_OVERLAY.animationDuration * current;
+  overlay.closing = true;
+  return true;
+}
+
+function bottomOverlayExitComplete(overlay, now) {
+  return overlay && overlay.screen === "bottom" && !["listbox", "text"].includes(overlay.type) &&
+    overlay.closing && now - overlay.animationStartedAt >= overlay.animationDuration;
 }
 
 function createTextKeyboardAnimation(now) {
@@ -718,6 +745,7 @@ class CheatMenuModel {
     if (this.inlineList) closeListbox(this.inlineList, now);
     if (this.overlay && this.overlay.type === "listbox") closeListbox(this.overlay, now);
     else if (this.overlay && this.overlay.type === "text") closeTextKeyboard(this.overlay, now);
+    else if (this.overlay && this.overlay.screen === "bottom") closeBottomOverlay(this.overlay, now);
     else this.overlay = null;
     if (this.dirtyCount() > 0) {
       this.openDialog("close", now);
@@ -740,6 +768,7 @@ class CheatMenuModel {
     if (listboxExitComplete(this.inlineList, now)) this.inlineList = null;
     if (this.overlay && this.overlay.type === "listbox" && listboxExitComplete(this.overlay, now)) this.overlay = null;
     if (textKeyboardExitComplete(this.overlay, now)) this.overlay = null;
+    if (bottomOverlayExitComplete(this.overlay, now)) this.overlay = null;
     if (dialogExitComplete(this.dialog, now)) {
       const dialog = this.dialog;
       this.dialog = null;
@@ -915,17 +944,21 @@ class CheatMenuModel {
     this.valueBounceStartedAt = now;
   }
 
-  openNumeric(entry, applyOnConfirm = false) {
+  openNumeric(entry, applyOnConfirm = false, now = 0) {
     const mode = entry.format === "hex" ? "hex" : "dec";
     this.overlay = {
       type: "numeric", screen: "bottom", item: entry, mode,
       buffer: mode === "hex" ? Math.round(entry.value).toString(16).toUpperCase() : String(entry.value),
-      row: 0, column: 0, applyOnConfirm
+      row: 0, column: 0, applyOnConfirm,
+      ...createBottomOverlayAnimation(now)
     };
   }
 
-  openSlider(entry, applyOnConfirm = false) {
-    this.overlay = { type: "slider", screen: "bottom", item: entry, value: entry.value, applyOnConfirm };
+  openSlider(entry, applyOnConfirm = false, now = 0) {
+    this.overlay = {
+      type: "slider", screen: "bottom", item: entry, value: entry.value, applyOnConfirm,
+      ...createBottomOverlayAnimation(now)
+    };
   }
 
   openTextKeyboard(compact = false, now = 0) {
@@ -967,8 +1000,8 @@ class CheatMenuModel {
       item: entry, index: entry.value,
       ...createListboxAnimation(now, entry.value, entry.options.length, LISTBOX.inlineVisibleRows)
     };
-    else if (entry.type === "value" || entry.type === "linked-value") this.openNumeric(entry);
-    else if (entry.type === "slider") this.openSlider(entry);
+    else if (entry.type === "value" || entry.type === "linked-value") this.openNumeric(entry, false, now);
+    else if (entry.type === "slider") this.openSlider(entry, false, now);
     return true;
   }
 
@@ -993,11 +1026,11 @@ class CheatMenuModel {
       return true;
     }
     if (entry.type === "value" || entry.type === "linked-value") {
-      this.openNumeric(entry, true);
+      this.openNumeric(entry, true, now);
       return true;
     }
     if (entry.type === "slider") {
-      this.openSlider(entry, true);
+      this.openSlider(entry, true, now);
       return true;
     }
     return false;
@@ -1028,13 +1061,14 @@ class CheatMenuModel {
     const entry = this.selectedItem();
     if (!entry || entry.type === "folder" || entry.disabled) return;
     this.overlay = {
-      type: "hotkey-capture", screen: "bottom", item: entry, phase: "arming", capturedButtons: [], startedAt: now
+      type: "hotkey-capture", screen: "bottom", item: entry, phase: "arming", capturedButtons: [], startedAt: now,
+      ...createBottomOverlayAnimation(now)
     };
   }
 
-  handleHotkeyCapture(key, pressed, repeated) {
+  handleHotkeyCapture(key, pressed, repeated, now = 0) {
     const overlay = this.overlay;
-    if (!overlay || overlay.type !== "hotkey-capture") return;
+    if (!overlay || overlay.type !== "hotkey-capture" || overlay.closing) return;
     if (overlay.phase === "arming") {
       if (this.heldControls.size === 0) overlay.phase = "waiting";
       return;
@@ -1047,20 +1081,20 @@ class CheatMenuModel {
     }
     if (!pressed && overlay.phase === "recording" && this.heldControls.size === 0) {
       overlay.item.hotkey = formatHotkeyButtons(overlay.capturedButtons);
-      this.overlay = null;
+      closeBottomOverlay(overlay, now);
     }
   }
 
-  disableHotkeyCapture() {
-    if (!this.overlay || this.overlay.type !== "hotkey-capture") return false;
+  disableHotkeyCapture(now = 0) {
+    if (!this.overlay || this.overlay.type !== "hotkey-capture" || this.overlay.closing) return false;
     this.overlay.item.hotkey = "なし";
-    this.overlay = null;
+    closeBottomOverlay(this.overlay, now);
     return true;
   }
 
-  cancelHotkeyCapture() {
-    if (!this.overlay || this.overlay.type !== "hotkey-capture") return false;
-    this.overlay = null;
+  cancelHotkeyCapture(now = 0) {
+    if (!this.overlay || this.overlay.type !== "hotkey-capture" || this.overlay.closing) return false;
+    closeBottomOverlay(this.overlay, now);
     return true;
   }
 
@@ -1075,6 +1109,7 @@ class CheatMenuModel {
 
   activateNumericKey(key, now = 0) {
     const overlay = this.overlay;
+    if (!overlay || overlay.type !== "numeric" || overlay.closing) return false;
     const entry = overlay.item;
     if (!numericKeyEnabled(overlay, key)) return false;
     if (/^[0-9A-F]$/.test(key)) overlay.buffer = overlay.buffer === "0" ? key : overlay.buffer + key;
@@ -1088,7 +1123,7 @@ class CheatMenuModel {
     } else if (key === "DEC") {
       const value = Number.parseInt(overlay.buffer, 16) || 0;
       overlay.mode = "dec"; overlay.buffer = String(value); overlay.row = 0; overlay.column = 0;
-    } else if (key === "CANCEL") this.overlay = null;
+    } else if (key === "CANCEL") closeBottomOverlay(overlay, now);
     else if (key === "OK") {
       let value = overlay.mode === "hex" ? Number.parseInt(overlay.buffer, 16) : Number(overlay.buffer);
       if (!Number.isFinite(value)) value = entry.minimum;
@@ -1096,7 +1131,7 @@ class CheatMenuModel {
       const confirmedValue = Math.round(clamp(value, entry.minimum, entry.maximum) * decimals) / decimals;
       if (overlay.applyOnConfirm) this.commitHotkeyValue(entry, confirmedValue, now);
       else entry.value = confirmedValue;
-      this.overlay = null;
+      closeBottomOverlay(overlay, now);
     }
     return true;
   }
@@ -1165,7 +1200,7 @@ class CheatMenuModel {
 
   handleOverlay(key, now, repeated = false) {
     const overlay = this.overlay;
-    if (!overlay) return;
+    if (!overlay || overlay.closing) return;
     if (overlay.type === "listbox") {
       if (overlay.closing) return;
       if (key === "up") moveListboxSelection(overlay, -1, now, overlay.options.length, !repeated);
@@ -1190,16 +1225,16 @@ class CheatMenuModel {
       else if (key === "a") {
         if (overlay.applyOnConfirm) this.commitHotkeyValue(overlay.item, overlay.value, now);
         else overlay.item.value = overlay.value;
-        this.overlay = null;
+        closeBottomOverlay(overlay, now);
       }
-      else if (key === "b") this.overlay = null;
+      else if (key === "b") closeBottomOverlay(overlay, now);
       return;
     }
     if (overlay.type === "numeric") {
       const keys = numericKeys(overlay.mode, overlay.item.format === "float");
       if (["up", "down", "left", "right"].includes(key)) this.moveGrid(overlay, key, keys);
       else if (key === "a") this.activateNumericKey(keys[overlay.row][overlay.column], now);
-      else if (key === "b") this.overlay = null;
+      else if (key === "b") closeBottomOverlay(overlay, now);
       return;
     }
     if (overlay.type === "text") {
@@ -1224,7 +1259,7 @@ class CheatMenuModel {
     if (pressed && !repeated) this.heldControls.add(key);
     else if (!pressed) this.heldControls.delete(key);
     if (this.overlay && this.overlay.type === "hotkey-capture") {
-      this.handleHotkeyCapture(key, pressed, repeated);
+      this.handleHotkeyCapture(key, pressed, repeated, now);
       return;
     }
     this.releaseInactiveHotkeys();
@@ -1275,10 +1310,10 @@ class CheatMenuModel {
 
 const CTRPFUiModel = Object.freeze({
   CHAT_KANJI_MESSAGES,
-  SCREEN, NOTICE, MENU, FRAME, CONTROL_REPEAT, TOGGLE_ACTION, LISTBOX, TEXT_KEYBOARD, DIALOG, CLOSE_DIALOG_OPTIONS, DIALOG_DEFINITIONS, HOTKEYS, HOTKEY_BUTTON_ORDER, HOTKEY_BUTTON_LABELS, LONG_LIST_OPTIONS,
+  SCREEN, NOTICE, MENU, FRAME, CONTROL_REPEAT, TOGGLE_ACTION, LISTBOX, BOTTOM_OVERLAY, TEXT_KEYBOARD, DIALOG, CLOSE_DIALOG_OPTIONS, DIALOG_DEFINITIONS, HOTKEYS, HOTKEY_BUTTON_ORDER, HOTKEY_BUTTON_LABELS, LONG_LIST_OPTIONS,
   clamp, easeOutCubic, mix, formatHotkeyButtons, hotkeyButtons, hotkeyMatches, NotificationTimeline, ControlRepeater,
   createMenuTree, isDirty, walkItems, formatValue, numericKeys, numericKeyEnabled,
-  selectionPulse, selectionOutlinePulse, listboxAmount, listboxScrollPosition, textKeyboardAmount, dialogAmount, textKeys, textKeyLayout, textKeyEnabled,
+  selectionPulse, selectionOutlinePulse, listboxAmount, listboxScrollPosition, bottomOverlayAmount, textKeyboardAmount, dialogAmount, textKeys, textKeyLayout, textKeyEnabled,
   toKatakana, textCursor, transformBeforeCursor, CheatMenuModel
 });
 
