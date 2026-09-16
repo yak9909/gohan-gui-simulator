@@ -346,7 +346,7 @@ function boot() {
       drawBitmapText(top, font, badge.text, x + width - 8 - badgeWidth, y + 18, badge.color);
     }
     drawBitmapText(top, font, menu.isFavorite(entry) ? "FAVORITE  R:REMOVE" : "R:ADD FAVORITE", x + 8, y + 29, menu.isFavorite(entry) ? "#ffd166" : "#8f9a92");
-    drawBitmapText(top, font, "SELECT:FAVORITES", x + 116, y + 29, "#8f9a92");
+    drawBitmapText(top, font, "START:FAVORITES", x + 116, y + 29, "#8f9a92");
     lines.forEach((line, index) => drawBitmapText(top, font, line, x + 8, y + 42 + index * 11, entry.disabled ? "#626b64" : "#c4cec7"));
     top.restore();
   }
