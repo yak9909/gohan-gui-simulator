@@ -1064,6 +1064,8 @@ test("inline and screen listboxes ease in and remain mounted through their exit 
   const overlay = menu.overlay;
   assert.equal(listboxAmount(overlay, 500), 0);
   assert.equal(listboxAmount(overlay, 680), 1);
+  assert.match(appSource, /const backdropAmount = overlay\.type === "listbox" \? listboxAmount\(overlay, now\) : 1/);
+  assert.match(appSource, /0\.72 \* backdropAmount/);
   menu.handle("b", 680);
   assert.equal(menu.overlay, overlay);
   menu.update(860);
