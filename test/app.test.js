@@ -7,7 +7,9 @@ const {
   SCREEN,
   NOTICE,
   MENU,
+  FRAME,
   CONTROL_REPEAT,
+  TOGGLE_ACTION,
   LISTBOX,
   TEXT_KEYBOARD,
   DIALOG,
@@ -60,6 +62,13 @@ const numericFontScript = fs.readFileSync(path.join(__dirname, "../font/pixel-mp
 
 test("preview keeps the New 3DS native logical dimensions", () => {
   assert.deepEqual(SCREEN, { width: 400, height: 240, widthMm: 84.6, heightMm: 50.76 });
+});
+
+test("preview update and rendering are capped to 30 FPS", () => {
+  assert.equal(FRAME.fps, 30);
+  assert.equal(FRAME.interval, 1000 / 30);
+  assert.match(appSource, /if \(now < nextFrameAt\) return/);
+  assert.match(appSource, /nextFrameAt = now \+ FRAME\.interval/);
 });
 
 test("default and two-times modes use exact integer pixel scales", () => {
@@ -201,6 +210,7 @@ test("PixelMplus10 source pixels are used only for numeric value contexts", () =
   assert.equal(formatValue(numericFolder.children[1]), "0x2001");
   assert.equal(isNumericEntry({ type: "value" }), true);
   assert.equal(isNumericEntry({ type: "slider" }), true);
+  assert.equal(isNumericEntry({ type: "linked-value" }), true);
   assert.equal(isNumericEntry({ type: "checkbox" }), false);
   for (const label of ["0", "00", "9", "A", "F", "."]) assert.equal(isNumericKeyLabel(label), true);
   for (const label of ["HEX", "DEC", "決定", "16進数"]) assert.equal(isNumericKeyLabel(label), false);
@@ -709,6 +719,8 @@ test("cheat menu eases in from the left and checkbox changes remain pending", ()
   assert.equal(checkbox.appliedValue, false);
   assert.equal(isDirty(checkbox), true);
   menu.handle("x", 410, true);
+  assert.equal(checkbox.appliedValue, false, "short X must apply on release, not on press");
+  menu.handle("x", 411, false);
   assert.equal(checkbox.appliedValue, true);
   assert.equal(isDirty(checkbox), false);
 });
@@ -817,6 +829,63 @@ test("value, slider, and list items execute their simulated apply only when the 
   assert.equal(executed.filter((call) => call.entry === bells).length, 1, "binding-only apply must not write the value again");
 });
 
+test("linked and toggle-action items have their own state semantics and visual markers", () => {
+  const executed = [];
+  const emitted = [];
+  const menu = new CheatMenuModel(
+    (title, message) => emitted.push({ title, message }),
+    (entry, now) => executed.push({ entry, now })
+  );
+  const uiFolder = menu.rootItems.find((entry) => entry.label === "UIテスト");
+  const linkedValue = uiFolder.children.find((entry) => entry.type === "linked-value");
+  const linkedList = uiFolder.children.find((entry) => entry.type === "linked-list");
+  const toggleAction = uiFolder.children.find((entry) => entry.type === "toggle-action");
+
+  linkedValue.linkedValue = 4321;
+  linkedList.linkedValue = 2;
+  menu.open(0);
+  assert.equal(linkedValue.value, 4321);
+  assert.equal(linkedValue.appliedValue, 4321);
+  assert.equal(linkedList.value, 2);
+  assert.equal(linkedList.appliedValue, 2);
+
+  linkedValue.value = 5000;
+  menu.applyItem(linkedValue, 10);
+  assert.equal(linkedValue.linkedValue, 5000);
+  assert.equal(executed.filter((call) => call.entry === linkedValue).length, 1);
+
+  linkedList.linkedAvailable = false;
+  menu.open(20);
+  assert.equal(linkedList.disabled, true, "failed linked reads make the item unselectable");
+
+  toggleAction.value = true;
+  menu.applyItem(toggleAction, 30);
+  assert.equal(toggleAction.value, false);
+  assert.equal(toggleAction.appliedValue, false);
+  assert.equal(formatValue(toggleAction, 31), "OK");
+  assert.equal(formatValue(toggleAction, 30 + TOGGLE_ACTION.feedbackDuration), "OFF");
+  assert.equal(executed.filter((call) => call.entry === toggleAction).length, 1);
+  assert.ok(emitted.some((notice) => notice.title === "ACTION" && /トグル型アクション/.test(notice.message)));
+
+  const hotkeyMenu = new CheatMenuModel();
+  const hotkeyUi = hotkeyMenu.rootItems.find((entry) => entry.label === "UIテスト");
+  const hotkeyAction = hotkeyUi.children.find((entry) => entry.type === "toggle-action");
+  hotkeyAction.hotkey = "R";
+  hotkeyMenu.applyItem(hotkeyAction, 100);
+  hotkeyMenu.handle("r", 110, true);
+  assert.equal(hotkeyMenu.dialog.type, "toggle-action-hotkey");
+  assert.match(hotkeyMenu.dialog.title, /トグル型アクション/);
+  hotkeyMenu.handle("a", 120);
+  hotkeyMenu.update(280);
+  assert.equal(hotkeyAction.executionCount, 1);
+  hotkeyMenu.handle("r", 281, false);
+
+  assert.match(appSource, /text: "SYNC"/);
+  assert.match(appSource, /text: "ONCE"/);
+  assert.match(appSource, /"#ff6b6b"/, "checkbox X is rendered in a reddish color");
+  assert.match(appSource, /entry\.executionFeedbackUntil/);
+});
+
 test("action items run immediately when A is pressed", () => {
   const emitted = [];
   const menu = new CheatMenuModel((title, message) => emitted.push({ title, message }));
@@ -838,28 +907,45 @@ test("action items run immediately when A is pressed", () => {
   assert.equal(keyboardMenu.overlay.animationStartedAt, 40);
 });
 
-test("X applies only the selected item and holding it never applies all items", () => {
-  const emitted = [];
-  const menu = new CheatMenuModel((title, message) => emitted.push({ title, message }));
+test("X short press applies only the selected item and X long press asks to apply all", () => {
+  assert.equal(MENU.holdDuration, 600);
+  const menu = new CheatMenuModel();
   menu.open(0);
   const first = menu.rootItems[1];
   const second = menu.rootItems.at(-1);
   first.value = true;
   second.value = true;
   menu.currentFrame().selection = 1;
+
   const repeater = new ControlRepeater((key, now, pressed, repeated) => menu.handle(key, now, pressed, repeated));
-  repeater.press("x", 0);
-  assert.equal(first.appliedValue, true);
-  repeater.update(199);
-  assert.equal(second.appliedValue, false);
-  repeater.update(200);
-  repeater.update(320);
+  repeater.press("x", 100);
+  assert.equal(first.appliedValue, false, "press alone does not apply");
+  assert.equal(menu.holdActionProgress(400).progress, 0.5);
+  repeater.release("x", 450);
+  assert.equal(first.appliedValue, true, "short X applies only the selected item");
   assert.equal(second.appliedValue, false);
   assert.equal(menu.dialog, null);
-  assert.equal(emitted.some((notice) => notice.title === "APPLIED"), false);
-  repeater.release("x", 321);
-  assert.doesNotMatch(appSource, /xHoldProgress|X HOLD/);
-  assert.doesNotMatch(modelSource, /apply-all|emit\("APPLIED"/);
+
+  first.value = false;
+  second.value = true;
+  repeater.press("x", 1000);
+  menu.update(1599);
+  assert.equal(menu.dialog, null);
+  assert.ok(menu.holdActionProgress(1599).progress > 0.99);
+  menu.update(1600);
+  assert.equal(menu.dialog.type, "apply-all");
+  assert.equal(menu.dialog.title, "全ての変更を適用しますか？");
+  assert.deepEqual(menu.dialog.options, ["適用", "キャンセル"]);
+  repeater.release("x", 1601);
+  menu.handle("a", 1610);
+  menu.update(1770);
+  assert.equal(first.appliedValue, false);
+  assert.equal(second.appliedValue, true);
+  assert.equal(menu.dirtyCount(), 0);
+
+  assert.match(appSource, /function drawHoldProgress\(menuX, now\)/);
+  assert.match(appSource, /hold\.progress/);
+  assert.doesNotMatch(modelSource, /repeatable:\s*\[[^\]]*"x"/);
 });
 
 test("closing with pending changes offers only apply and cancel with animation", () => {
@@ -899,45 +985,37 @@ test("closing with pending changes offers only apply and cancel with animation",
   assert.doesNotMatch(appSource, /descriptionHeld|R説明/);
 });
 
-test("L discards only yellow pending changes and preserves applied state", () => {
-  const emitted = [];
-  const menu = new CheatMenuModel((title, message) => emitted.push({ title, message }));
+test("L short press reverts only the selected item and L long press asks to revert all", () => {
+  const menu = new CheatMenuModel();
   menu.open(0);
-  const checkbox = menu.rootItems[1];
-  checkbox.value = true;
-  checkbox.hotkey = "L+A";
-  menu.applyItem(checkbox, 10);
-  assert.equal(checkbox.appliedValue, true);
-  assert.equal(checkbox.appliedHotkey, "L+A");
+  const first = menu.rootItems[1];
+  const second = menu.rootItems.at(-1);
+  first.value = true;
+  second.value = true;
 
-  checkbox.value = false;
-  checkbox.hotkey = "R";
-  assert.equal(isDirty(checkbox), true);
+  menu.currentFrame().selection = 1;
+  menu.handle("l", 100, true);
+  assert.equal(first.value, true);
+  menu.handle("l", 250, false);
+  assert.equal(first.value, first.appliedValue, "short L reverts the selected item");
+  assert.equal(second.value, true, "short L leaves other pending items unchanged");
 
-  menu.handle("l", 100);
+  first.value = true;
+  second.value = true;
+  menu.handle("l", 1000, true);
+  menu.update(1599);
+  assert.equal(menu.dialog, null);
+  assert.ok(menu.holdActionProgress(1599).progress > 0.99);
+  menu.update(1600);
   assert.equal(menu.dialog.type, "revert-all");
-  assert.equal(menu.dialog.title, "変更を戻しますか？");
+  assert.equal(menu.dialog.title, "全ての変更を戻しますか？");
   assert.deepEqual(menu.dialog.options, ["戻す", "キャンセル"]);
-  menu.handle("down", 260);
-  menu.handle("a", 270);
-  menu.update(430);
-  assert.equal(checkbox.value, false, "cancel must preserve the pending edit");
-  assert.equal(checkbox.hotkey, "R");
-  assert.equal(checkbox.appliedValue, true);
-  assert.equal(checkbox.appliedHotkey, "L+A");
-
-  menu.handle("l", 500);
-  menu.handle("a", 660);
-  menu.update(820);
-  assert.equal(checkbox.value, true, "pending value returns to the applied value");
-  assert.equal(checkbox.appliedValue, true, "applied value must not be reverted");
-  assert.equal(checkbox.hotkey, "L+A", "pending hotkey returns to the applied hotkey");
-  assert.equal(checkbox.appliedHotkey, "L+A", "applied hotkey must not be reverted");
-  assert.equal(isDirty(checkbox), false);
-  assert.equal(emitted.filter((notice) => notice.title === "CHEAT DISABLED").length, 0);
-
-  menu.handle("l", 900);
-  assert.equal(menu.dialog, null, "L does nothing when there are no yellow pending changes");
+  menu.handle("l", 1601, false);
+  menu.handle("a", 1610);
+  menu.update(1770);
+  assert.equal(first.value, first.appliedValue);
+  assert.equal(second.value, second.appliedValue);
+  assert.equal(menu.dirtyCount(), 0);
 });
 
 test("inline list changes locally and closing the menu asks before applying pending values", () => {
