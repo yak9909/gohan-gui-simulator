@@ -1303,7 +1303,7 @@ class CheatMenuModel {
     const keys = this.overlay.type === "numeric" ? numericKeys(this.overlay.mode, this.overlay.item.format === "float") : textKeys(this.overlay.mode);
     if (!keys[row] || keys[row][column] === undefined) return;
     if (updateSelection) { this.overlay.row = row; this.overlay.column = column; }
-    if (this.overlay.type === "numeric") this.activateNumericKey(keys[row][column]);
+    if (this.overlay.type === "numeric") this.activateNumericKey(keys[row][column], now);
     else this.activateTextKey(keys[row][column], now);
   }
 }
