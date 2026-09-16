@@ -313,6 +313,14 @@ function numberedLabel(prefix, index) {
   return `${prefix}${String(index + 1).padStart(2, "0")}`;
 }
 
+function assignFavoriteKeys(items, parentPath = "") {
+  for (const entry of items) {
+    const path = parentPath ? `${parentPath}/${entry.label}` : entry.label;
+    entry.favoriteKey = path;
+    if (entry.children) assignFavoriteKeys(entry.children, path);
+  }
+}
+
 function createMenuTree() {
   nextItemId = 1;
   const scrollTestItems = Array.from({ length: 24 }, (_, index) => item(
@@ -321,7 +329,7 @@ function createMenuTree() {
   const additionalItems = Array.from({ length: 12 }, (_, index) => item(
     "checkbox", numberedLabel("追加チート", index), "ルートメニューのスクロール確認用項目です。", { value: false }
   ));
-  return [
+  const root = [
     item("folder", "プレイヤー", "プレイヤー関連のチートを開きます。", { children: [
       item("checkbox", "無敵モード", "ダメージを受けなくなります。", { value: false, effectKind: "toggle" }),
       item("checkbox", "壁抜け", "当たり判定を無効にします。", { value: false, effectKind: "toggle" }),
@@ -351,6 +359,8 @@ function createMenuTree() {
     item("action", "チャット漢字候補", "チャットの入力から漢字候補を取得し下画面に表示します。", { action: "chat-kanji" }),
     ...additionalItems
   ];
+  assignFavoriteKeys(root);
+  return root;
 }
 
 function isDirty(entry) {
@@ -608,10 +618,76 @@ class CheatMenuModel {
     this.heldControls = new Set();
     this.activeHotkeyItems = new Set();
     this.holdAction = null;
+    this.favoriteKeys = new Set();
   }
 
   currentFrame() { return this.frames[this.frames.length - 1]; }
   selectedItem() { return this.currentFrame().items[this.currentFrame().selection]; }
+
+  favoriteItems() {
+    const entries = [];
+    walkItems(this.rootItems, (entry) => {
+      if (this.favoriteKeys.has(entry.favoriteKey)) entries.push(entry);
+    });
+    return entries;
+  }
+
+  isFavorite(entry) {
+    return Boolean(entry?.favoriteKey && this.favoriteKeys.has(entry.favoriteKey));
+  }
+
+  favoriteKeysArray() {
+    return [...this.favoriteKeys];
+  }
+
+  restoreFavorites(keys = [], now = 0) {
+    const validKeys = new Set();
+    walkItems(this.rootItems, (entry) => validKeys.add(entry.favoriteKey));
+    this.favoriteKeys = new Set((Array.isArray(keys) ? keys : []).filter((key) => validKeys.has(key)));
+    if (this.currentFrame().kind === "favorites") {
+      const items = this.favoriteItems();
+      if (!items.length && this.frames.length > 1) this.frames.pop();
+      else {
+        this.currentFrame().items = items;
+        this.currentFrame().selection = clamp(this.currentFrame().selection, 0, Math.max(0, items.length - 1));
+      }
+      this.resetSelectionAnimation(now);
+    }
+    return this.favoriteKeys.size;
+  }
+
+  toggleFavorite(entry = this.selectedItem(), now = 0) {
+    if (!entry?.favoriteKey) return false;
+    const removing = this.favoriteKeys.has(entry.favoriteKey);
+    if (removing) this.favoriteKeys.delete(entry.favoriteKey);
+    else this.favoriteKeys.add(entry.favoriteKey);
+    this.emit("FAVORITES", `${removing ? "REMOVE" : "ADD"}: ${entry.label}`);
+
+    if (this.currentFrame().kind === "favorites") {
+      const items = this.favoriteItems();
+      if (!items.length && this.frames.length > 1) {
+        this.frames.pop();
+      } else {
+        const frame = this.currentFrame();
+        frame.items = items;
+        frame.selection = clamp(frame.selection, 0, Math.max(0, items.length - 1));
+      }
+      this.resetSelectionAnimation(now);
+    }
+    return true;
+  }
+
+  openFavorites(now = 0) {
+    const items = this.favoriteItems();
+    if (!items.length) {
+      this.emit("FAVORITES", "NO ITEMS");
+      return false;
+    }
+    if (this.currentFrame().kind === "favorites") return true;
+    this.frames.push({ title: "FAVORITES", items, selection: 0, kind: "favorites" });
+    this.resetSelectionAnimation(now);
+    return true;
+  }
 
   selectionPosition(now) {
     const progress = easeOutCubic((now - this.selectionStartedAt) / MENU.selectionMoveDuration);
@@ -1321,6 +1397,8 @@ class CheatMenuModel {
     }
     else if ((key === "x" || key === "l") && !repeated) this.beginHoldAction(key, now);
     else if (key === "y") this.openHotkeyPicker(now);
+    else if (key === "r" && !repeated) this.toggleFavorite(this.selectedItem(), now);
+    else if (key === "select" && !repeated) this.openFavorites(now);
     else if ((key === "left" || key === "right") && ["value", "slider", "linked-value"].includes(this.selectedItem().type)) this.changeValue(this.selectedItem(), key === "right" ? 1 : -1, now);
   }
 
