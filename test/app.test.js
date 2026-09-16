@@ -837,7 +837,7 @@ test("value, slider, and list items execute their simulated apply only when the 
   assert.equal(executed.filter((call) => call.entry === bells).length, 1, "binding-only apply must not write the value again");
 });
 
-test("linked and toggle-action items have their own state semantics and visual markers", () => {
+test("linked items keep visual markers while toggle-actions use normal action styling", () => {
   const executed = [];
   const emitted = [];
   const menu = new CheatMenuModel(
@@ -889,9 +889,10 @@ test("linked and toggle-action items have their own state semantics and visual m
   hotkeyMenu.handle("r", 281, false);
 
   assert.match(appSource, /text: "SYNC"/);
-  assert.match(appSource, /text: "ONCE"/);
+  assert.doesNotMatch(appSource, /text: "ONCE"/);
+  assert.match(appSource, /entry\.type === "toggle-action" \|\| entry\.type === "action"\) return "A"/);
+  assert.doesNotMatch(appSource, /entry\.type === "toggle-action"\) return "#ff8a7a"/);
   assert.match(appSource, /"#ff6b6b"/, "checkbox X is rendered in a reddish color");
-  assert.match(appSource, /entry\.executionFeedbackUntil/);
 });
 
 test("action items run immediately when A is pressed", () => {
