@@ -273,7 +273,7 @@ function boot() {
       const itemOffset = selected ? Math.round(activationOffset) : 0;
       const color = entry.disabled ? "#525b54" : isDirty(entry) ? "#ffd166" : selected ? "#ffffff" : "#aeb9b1";
       drawItemIcon(entry, menuX + 8 + itemOffset, y, color);
-      if (menu.isFavorite(entry)) drawBitmapText(top, font, "F", menuX + 22 + itemOffset, y, "#8f9a92");
+      if (menu.isFavorite(entry)) drawBitmapText(top, font, "F", menuX + 22 + itemOffset, y, "#d6c98a");
       const value = formatValue(entry, now);
       const valueFont = isNumericEntry(entry) ? numericFont : font;
       const valueWidth = value ? measureBitmapText(valueFont, value) : 0;
