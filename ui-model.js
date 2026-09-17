@@ -677,16 +677,33 @@ class CheatMenuModel {
     return true;
   }
 
+  favoritesFrameIndex() {
+    return this.frames.findIndex((frame) => frame.kind === "favorites");
+  }
+
+  closeFavorites(now = 0) {
+    const index = this.favoritesFrameIndex();
+    if (index < 0) return false;
+    // FAVORITES配下のフォルダへ入っている場合も、その配下ごと閉じて呼び出し元へ戻る。
+    this.frames.splice(index);
+    this.resetSelectionAnimation(now);
+    return true;
+  }
+
   openFavorites(now = 0) {
     const items = this.favoriteItems();
     if (!items.length) {
       this.emit("FAVORITES", "NO ITEMS");
       return false;
     }
-    if (this.currentFrame().kind === "favorites") return true;
     this.frames.push({ title: "FAVORITES", items, selection: 0, kind: "favorites" });
     this.resetSelectionAnimation(now);
     return true;
+  }
+
+  toggleFavorites(now = 0) {
+    if (this.favoritesFrameIndex() >= 0) return this.closeFavorites(now);
+    return this.openFavorites(now);
   }
 
   selectionPosition(now) {
@@ -1398,7 +1415,7 @@ class CheatMenuModel {
     else if ((key === "x" || key === "l") && !repeated) this.beginHoldAction(key, now);
     else if (key === "y") this.openHotkeyPicker(now);
     else if (key === "r" && !repeated) this.toggleFavorite(this.selectedItem(), now);
-    else if (key === "start" && !repeated) this.openFavorites(now);
+    else if (key === "start" && !repeated) this.toggleFavorites(now);
     else if ((key === "left" || key === "right") && ["value", "slider", "linked-value"].includes(this.selectedItem().type)) this.changeValue(this.selectedItem(), key === "right" ? 1 : -1, now);
   }
 
