@@ -579,12 +579,26 @@ test("favorites are reference-based, reversible, restorable, and accessible with
   assert.equal(menu.isFavorite(source), true);
   menu.handle("start", 200);
   assert.equal(menu.currentFrame().items[0], source);
-  menu.handle("b", 220);
-  assert.equal(menu.currentFrame().title, "ROOT");
+  menu.handle("start", 220);
+  assert.equal(menu.currentFrame().title, "ROOT", "START closes favorites back to the calling frame");
+
+  menu.handle("start", 240);
+  assert.equal(menu.currentFrame().title, "FAVORITES");
+  menu.handle("b", 260);
+  assert.equal(menu.currentFrame().title, "ROOT", "B remains a valid way to leave favorites");
 
   const player = menu.rootItems.find((entry) => entry.label === "プレイヤー");
   const wallClip = player.children.find((entry) => entry.label === "壁抜け");
   assert.equal(wallClip.favoriteKey, "プレイヤー/壁抜け");
+
+  menu.toggleFavorite(player, 280);
+  menu.handle("start", 300);
+  assert.equal(menu.currentFrame().title, "FAVORITES");
+  menu.currentFrame().selection = menu.currentFrame().items.indexOf(player);
+  menu.handle("a", 320);
+  assert.equal(menu.currentFrame().title, "プレイヤー");
+  menu.handle("start", 340);
+  assert.equal(menu.currentFrame().title, "ROOT", "START closes favorites even from a favorite folder subtree");
 
   const empty = new CheatMenuModel((title, message) => emitted.push({ title, message }));
   empty.open(0);
@@ -599,6 +613,8 @@ test("favorites are reference-based, reversible, restorable, and accessible with
   assert.match(html, /<b>R<\/b> お気に入り切替/);
   assert.match(html, /<b>START<\/b> お気に入り一覧/);
   assert.doesNotMatch(modelSource, /key === "select" && !repeated\) this\.openFavorites/);
+  assert.match(modelSource, /key === "start" && !repeated\) this\.toggleFavorites\(now\)/);
+  assert.match(modelSource, /this\.frames\.splice\(index\)/);
 });
 
 test("pressing A gives the selected item a small 80ms horizontal bounce", () => {
