@@ -611,7 +611,7 @@ test("favorites are reference-based, reversible, restorable, and accessible with
   assert.match(appSource, /menu\.isFavorite\(entry\).*"F"/s);
   assert.match(appSource, /START:FAVORITES/);
   assert.match(html, /<b>R<\/b> お気に入り切替/);
-  assert.match(html, /<b>START<\/b> お気に入り一覧/);
+  assert.match(html, /<b>START<\/b> お気に入り開閉/);
   assert.doesNotMatch(modelSource, /key === "select" && !repeated\) this\.openFavorites/);
   assert.match(modelSource, /key === "start" && !repeated\) this\.toggleFavorites\(now\)/);
   assert.match(modelSource, /this\.frames\.splice\(index\)/);
