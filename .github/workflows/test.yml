@@ -19,39 +19,5 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Test issue 2
-        continue-on-error: true
-        run: node --test --test-name-pattern="issue #2" test/issues.test.js
-      - name: Test issue 3
-        continue-on-error: true
-        run: node --test --test-name-pattern="issue #3" test/issues.test.js
-      - name: Test issue 4
-        continue-on-error: true
-        run: node --test --test-name-pattern="issue #4" test/issues.test.js
-      - name: Test issue 5
-        continue-on-error: true
-        run: node --test --test-name-pattern="issue #5" test/issues.test.js
-      - name: Test issue suite
-        continue-on-error: true
-        run: node --test test/issues.test.js
-      - name: Test legacy suite
-        continue-on-error: true
-        run: node --test test/app.test.js
-      - name: Capture npm test
-        id: npmtest
-        continue-on-error: true
-        shell: bash
-        run: |
-          set +e
-          npm test > npm-test.log 2>&1
-          status=$?
-          echo "status=$status" >> "$GITHUB_OUTPUT"
-          exit 0
-      - name: Upload npm test log
-        uses: actions/upload-artifact@v4
-        with:
-          name: npm-test-log
-          path: npm-test.log
-      - name: Enforce npm test result
-        shell: bash
-        run: test "${{ steps.npmtest.outputs.status }}" = "0"
+      - name: Run tests
+        run: npm test
