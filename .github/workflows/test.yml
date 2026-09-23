@@ -31,5 +31,11 @@ jobs:
       - name: Test issue 5
         continue-on-error: true
         run: node --test --test-name-pattern="issue #5" test/issues.test.js
+      - name: Test issue suite
+        continue-on-error: true
+        run: node --test test/issues.test.js
+      - name: Test legacy suite
+        continue-on-error: true
+        run: node --test test/app.test.js
       - name: Run full tests
         run: npm test
