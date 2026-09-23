@@ -19,5 +19,17 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Run tests
+      - name: Test issue 2
+        continue-on-error: true
+        run: node --test --test-name-pattern="issue #2" test/issues.test.js
+      - name: Test issue 3
+        continue-on-error: true
+        run: node --test --test-name-pattern="issue #3" test/issues.test.js
+      - name: Test issue 4
+        continue-on-error: true
+        run: node --test --test-name-pattern="issue #4" test/issues.test.js
+      - name: Test issue 5
+        continue-on-error: true
+        run: node --test --test-name-pattern="issue #5" test/issues.test.js
+      - name: Run full tests
         run: npm test
