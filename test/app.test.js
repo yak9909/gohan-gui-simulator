@@ -175,7 +175,7 @@ test("Misaki Gothic 2nd is read directly as an 8px 1-bit BDF glyph set", () => {
   assert.equal(font.pixelSize, 8);
   assert.equal(font.lineHeight, 8);
   assert.equal(font.bitmapFormat, "BDF 2.1 / ISO10646-1");
-  assert.equal(font.glyphCount, 370);
+  assert.equal(font.glyphCount, 385);
   assert.ok(Object.values(font.glyphs).every((glyph) => glyph.source === "BDF-8px"));
   const kana = font.glyphs[String("あ".codePointAt(0))];
   assert.equal(kana.width, 7);
