@@ -11,14 +11,15 @@
     gap: 2, paddingX: 4, textCellY: 47, textScale: 0.72
   });
   const CANDIDATE_COLORS = Object.freeze({
-    panel: "#947d63",
-    border: "#523010",
-    separator: "rgba(82, 48, 16, 0.58)",
-    selected: "#c99b5c",
-    text: "#fff3d6",
-    selectedText: "#3e2412",
-    scrollHint: "rgba(82, 48, 16, 0.72)"
-  });
+  // The supplied ACNL screenshot uses this dark brown on utility keys such as delete/space.
+  panel: "#522810",
+  border: "#522810",
+  separator: "#522810",
+  selected: "rgba(239, 255, 214, 0.24)",
+  text: "#fff3d6",
+  selectedText: "#fff3d6",
+  scrollHint: "rgba(255, 243, 214, 0.62)"
+});
 
   // Additional preview glyphs are extracted from the same supplied Garden_msg_size16.bcfnt.
   // The source texture is A4; the rows below preserve its 4-bit alpha values exactly.
@@ -75,31 +76,46 @@
         }
       }
     } else {
-      // Downsample the supplied A4 bitmap by max-pooling source texels. This keeps
-      // thin ACNL-font strokes legible without falling back to a browser font.
-      const sourceHeight = glyph.rows.length;
-      const sourceWidth = glyph.rows[0]?.length || 0;
-      const outputWidth = Math.max(1, Math.round(sourceWidth * scale));
-      const outputHeight = Math.max(1, Math.round(sourceHeight * scale));
-      const left = Math.round(glyph.left * scale);
-      for (let oy = 0; oy < outputHeight; oy++) {
-        const sy0 = Math.floor(oy / scale);
-        const sy1 = Math.min(sourceHeight, Math.ceil((oy + 1) / scale));
-        for (let ox = 0; ox < outputWidth; ox++) {
-          const sx0 = Math.floor(ox / scale);
-          const sx1 = Math.min(sourceWidth, Math.ceil((ox + 1) / scale));
-          let alpha = 0;
-          for (let sy = sy0; sy < sy1; sy++) {
-            for (let sx = sx0; sx < sx1; sx++) alpha = Math.max(alpha, parseInt(glyph.rows[sy][sx], 16));
-          }
-          if (!alpha) continue;
-          context.globalAlpha = baseAlpha * alpha / 15;
-          context.fillRect(Math.round(x) + left + ox, Math.round(cellY) + oy, 1, 1);
+  // Area-weighted downsampling preserves the supplied A4 coverage instead of
+  // max-pooling it. Max-pooling made neighboring strokes merge and visibly
+  // corrupted dense kanji at the reduced preview size.
+  const sourceHeight = glyph.rows.length;
+  const sourceWidth = glyph.rows[0]?.length || 0;
+  const outputWidth = Math.max(1, Math.round(sourceWidth * scale));
+  const outputHeight = Math.max(1, Math.round(sourceHeight * scale));
+  const left = Math.round(glyph.left * scale);
+  for (let oy = 0; oy < outputHeight; oy++) {
+    const sy0 = oy / scale;
+    const sy1 = Math.min(sourceHeight, (oy + 1) / scale);
+    for (let ox = 0; ox < outputWidth; ox++) {
+      const sx0 = ox / scale;
+      const sx1 = Math.min(sourceWidth, (ox + 1) / scale);
+      let weightedAlpha = 0;
+      let coveredArea = 0;
+      const firstSy = Math.floor(sy0);
+      const lastSy = Math.min(sourceHeight - 1, Math.ceil(sy1) - 1);
+      const firstSx = Math.floor(sx0);
+      const lastSx = Math.min(sourceWidth - 1, Math.ceil(sx1) - 1);
+      for (let sy = firstSy; sy <= lastSy; sy++) {
+        const overlapY = Math.max(0, Math.min(sy + 1, sy1) - Math.max(sy, sy0));
+        if (!overlapY) continue;
+        for (let sx = firstSx; sx <= lastSx; sx++) {
+          const overlapX = Math.max(0, Math.min(sx + 1, sx1) - Math.max(sx, sx0));
+          const area = overlapX * overlapY;
+          if (!area) continue;
+          weightedAlpha += parseInt(glyph.rows[sy][sx], 16) * area;
+          coveredArea += area;
         }
       }
+      const alpha = coveredArea ? weightedAlpha / coveredArea : 0;
+      if (alpha <= 0.01) continue;
+      context.globalAlpha = baseAlpha * alpha / 15;
+      context.fillRect(Math.round(x) + left + ox, Math.round(cellY) + oy, 1, 1);
     }
+  }
+}
 
-    context.globalAlpha = baseAlpha;
+context.globalAlpha = baseAlpha;
     return glyphAdvance(glyph, scale);
   }
 
