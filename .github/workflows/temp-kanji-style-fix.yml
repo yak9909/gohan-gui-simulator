@@ -1,0 +1,109 @@
+name: Apply kanji candidate styling and font fix
+
+on:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch candidate colors and BCFNT resampling
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('chat-kanji-preview.js')
+          text = path.read_text(encoding='utf-8')
+
+          colors = '''  const CANDIDATE_COLORS = Object.freeze({
+    // The supplied ACNL screenshot uses this dark brown on utility keys such as delete/space.
+    panel: "#522810",
+    border: "#522810",
+    separator: "#522810",
+    selected: "rgba(239, 255, 214, 0.24)",
+    text: "#fff3d6",
+    selectedText: "#fff3d6",
+    scrollHint: "rgba(255, 243, 214, 0.62)"
+  });'''
+          text, count = re.subn(
+              r'  const CANDIDATE_COLORS = Object\.freeze\(\{.*?\n  \}\);',
+              colors,
+              text,
+              count=1,
+              flags=re.S,
+          )
+          if count != 1:
+              raise SystemExit('candidate color block not found')
+
+          replacement = '''    } else {
+      // Area-weighted downsampling preserves the supplied A4 coverage instead of
+      // max-pooling it. Max-pooling made neighboring strokes merge and visibly
+      // corrupted dense kanji at the reduced preview size.
+      const sourceHeight = glyph.rows.length;
+      const sourceWidth = glyph.rows[0]?.length || 0;
+      const outputWidth = Math.max(1, Math.round(sourceWidth * scale));
+      const outputHeight = Math.max(1, Math.round(sourceHeight * scale));
+      const left = Math.round(glyph.left * scale);
+      for (let oy = 0; oy < outputHeight; oy++) {
+        const sy0 = oy / scale;
+        const sy1 = Math.min(sourceHeight, (oy + 1) / scale);
+        for (let ox = 0; ox < outputWidth; ox++) {
+          const sx0 = ox / scale;
+          const sx1 = Math.min(sourceWidth, (ox + 1) / scale);
+          let weightedAlpha = 0;
+          let coveredArea = 0;
+          const firstSy = Math.floor(sy0);
+          const lastSy = Math.min(sourceHeight - 1, Math.ceil(sy1) - 1);
+          const firstSx = Math.floor(sx0);
+          const lastSx = Math.min(sourceWidth - 1, Math.ceil(sx1) - 1);
+          for (let sy = firstSy; sy <= lastSy; sy++) {
+            const overlapY = Math.max(0, Math.min(sy + 1, sy1) - Math.max(sy, sy0));
+            if (!overlapY) continue;
+            for (let sx = firstSx; sx <= lastSx; sx++) {
+              const overlapX = Math.max(0, Math.min(sx + 1, sx1) - Math.max(sx, sx0));
+              const area = overlapX * overlapY;
+              if (!area) continue;
+              weightedAlpha += parseInt(glyph.rows[sy][sx], 16) * area;
+              coveredArea += area;
+            }
+          }
+          const alpha = coveredArea ? weightedAlpha / coveredArea : 0;
+          if (alpha <= 0.01) continue;
+          context.globalAlpha = baseAlpha * alpha / 15;
+          context.fillRect(Math.round(x) + left + ox, Math.round(cellY) + oy, 1, 1);
+        }
+      }
+    }
+
+    context.globalAlpha'''
+          text, count = re.subn(
+              r'    \} else \{\n      // Downsample the supplied A4 bitmap by max-pooling source texels\..*?\n    \}\n\n    context\.globalAlpha',
+              replacement,
+              text,
+              count=1,
+              flags=re.S,
+          )
+          if count != 1:
+              raise SystemExit('max-pooling block not found')
+
+          path.write_text(text, encoding='utf-8')
+          PY
+      - name: Remove temporary workflow
+        run: rm .github/workflows/temp-kanji-style-fix.yml
+      - name: Commit patch
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add chat-kanji-preview.js .github/workflows/temp-kanji-style-fix.yml
+          git commit -m "Refine kanji candidate colors and font scaling"
+          git push
