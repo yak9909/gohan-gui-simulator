@@ -446,45 +446,57 @@ function boot() {
     bottom.strokeStyle = "#3f5147"; bottom.strokeRect(12.5, 25.5, 295, 29);
     drawBitmapText(bottom, numericFont, overlay.mode === "hex" ? `0x${overlay.buffer}` : overlay.buffer, 20, 36, "#ffffff");
     let boundsX = drawBitmapText(bottom, font, "MIN:", 12, 61, "#7d8981");
-    boundsX = drawBitmapText(bottom, numericFont, String(overlay.item.minimum), boundsX, 61, "#7d8981");
+    boundsX = drawBitmapText(bottom, numericFont, formatBound(overlay.item.minimum, overlay.item.format), boundsX, 61, "#7d8981");
     boundsX = drawBitmapText(bottom, font, "  MAX:", boundsX, 61, "#7d8981");
-    drawBitmapText(bottom, numericFont, String(overlay.item.maximum), boundsX, 61, "#7d8981");
+    drawBitmapText(bottom, numericFont, formatBound(overlay.item.maximum, overlay.item.format), boundsX, 61, "#7d8981");
     bottomHitRegions = [];
+    const gridWidth = 296, keyHeight = 21, gap = 3, startX = 12, startY = 74;
     keys.forEach((row, rowIndex) => row.forEach((key, columnIndex) => {
-      const columns = row.length;
-      const x = Math.round(mix(12, 308, columnIndex / columns));
-      const nextX = Math.round(mix(12, 308, (columnIndex + 1) / columns));
-      const y = 77 + rowIndex * 25;
-      const selected = rowIndex === overlay.row && columnIndex === overlay.column;
-      const enabled = numericKeyEnabled(overlay, key);
-      drawKeyboardKey(bottom, key, x, y, nextX - x - 2, 22, selected, isNumericKeyLabel(key), !enabled);
-      bottomHitRegions.push({ x, y, width: nextX - x - 2, height: 22, row: rowIndex, column: columnIndex, disabled: !enabled });
+      const keyWidth = Math.floor((gridWidth - gap * (row.length - 1)) / row.length);
+      const rowWidth = keyWidth * row.length + gap * (row.length - 1);
+      const rowX = startX + Math.floor((gridWidth - rowWidth) / 2);
+      const x = rowX + columnIndex * (keyWidth + gap), y = startY + rowIndex * (keyHeight + gap);
+      const disabled = !numericKeyEnabled(overlay, key);
+      drawKeyboardKey(bottom, key, x, y, keyWidth, keyHeight, rowIndex === overlay.row && columnIndex === overlay.column, isNumericKeyLabel(key), disabled);
+      bottomHitRegions.push({ x, y, width: keyWidth, height: keyHeight, row: rowIndex, column: columnIndex, disabled });
     }));
   }
 
+  function formatBound(value, format) {
+    if (format === "hex") return `0x${Math.round(value).toString(16).toUpperCase()}`;
+    return format === "float" ? Number(value).toFixed(1) : String(value);
+  }
+
   function drawSlider(overlay) {
-    drawBitmapText(bottom, font, "スライダー", 12, 18, "#63e4a4");
-    bottom.fillStyle = "rgba(8, 10, 9, .75)"; bottom.fillRect(12, 40, 296, 76);
-    bottom.strokeStyle = "#3f5147"; bottom.strokeRect(12.5, 40.5, 295, 75);
-    const trackX = 24, trackY = 76, trackWidth = 272;
-    bottom.fillStyle = "#26352d"; bottom.fillRect(trackX, trackY, trackWidth, 4);
-    const ratio = (overlay.value - overlay.item.minimum) / (overlay.item.maximum - overlay.item.minimum);
-    bottom.fillStyle = "#63e4a4"; bottom.fillRect(trackX, trackY, Math.round(trackWidth * ratio), 4);
-    bottom.fillStyle = "#ffffff"; bottom.fillRect(trackX + Math.round(trackWidth * ratio) - 2, trackY - 5, 5, 14);
-    const sliderValueFont = isNumericEntry(overlay.item) ? numericFont : font;
-    drawBitmapText(bottom, sliderValueFont, formatValue({ ...overlay.item, value: overlay.value }), 24, 94, "#ffffff");
-    bottomHitRegions = [{ x: trackX, y: trackY - 12, width: trackWidth, height: 28, slider: true }];
+    const entry = overlay.item;
+    drawBitmapText(bottom, font, "数値スライダー", 12, 12, "#63e4a4");
+    drawBitmapText(bottom, font, entry.label, 12, 30, "#ffffff");
+    const display = formatBound(overlay.value, entry.format);
+    drawBitmapText(bottom, numericFont, display, 308 - measureBitmapText(numericFont, display), 30, "#ffd166");
+    const x = 20, y = 103, width = 280;
+    bottom.fillStyle = "rgba(39, 48, 42, .72)"; bottom.fillRect(x, y, width, 4);
+    const progress = (overlay.value - entry.minimum) / (entry.maximum - entry.minimum);
+    bottom.fillStyle = "rgba(99, 228, 164, .88)"; bottom.fillRect(x, y, Math.round(width * progress), 4);
+    bottom.fillStyle = "rgba(255, 255, 255, .9)"; bottom.fillRect(Math.round(x + width * progress) - 3, y - 5, 7, 14);
+    drawBitmapText(bottom, numericFont, formatBound(entry.minimum, entry.format), x, 122, "#7d8981");
+    const maxText = formatBound(entry.maximum, entry.format);
+    drawBitmapText(bottom, numericFont, maxText, x + width - measureBitmapText(numericFont, maxText), 122, "#7d8981");
+    const stepX = drawBitmapText(bottom, font, "STEP:", 127, 122, "#7d8981");
+    drawBitmapText(bottom, numericFont, String(entry.step), stepX, 122, "#7d8981");
+    drawBitmapText(bottom, font, "左右:変更  A:決定  B:取消", 72, 196, "#aeb9b1");
+    bottomHitRegions = [{ x, y: y - 12, width, height: 30, slider: true }];
   }
 
   function drawTextKeyboard(overlay, now) {
-    const compact = Boolean(overlay.compact);
-    const geometry = textKeyboardGeometry(compact);
-    const layout = textKeyLayout(overlay.mode, compact);
-    drawBitmapText(bottom, font, compact ? "小型文字入力" : `文字入力 ${overlay.mode === "abc" ? "ABC" : overlay.script === "katakana" ? "カナ" : "かな"}`, geometry.titleX, geometry.titleY, "#63e4a4");
-    bottom.fillStyle = "rgba(8, 10, 9, .75)"; roundedRect(bottom, geometry.inputX, geometry.inputY, geometry.inputWidth, geometry.inputHeight, geometry.inputRadius); bottom.fill();
+    const layout = textKeyLayout(overlay.mode, overlay.compact);
+    const geometry = textKeyboardGeometry(overlay.compact);
+    const inputMode = overlay.mode === "kana" ? (overlay.script === "katakana" ? "カナ" : "かな") : "QWERTY";
+    drawBitmapText(bottom, font, `${overlay.compact ? "小型" : ""}文字入力 ${inputMode}`, geometry.titleX, geometry.titleY, "#63e4a4");
+    bottom.fillStyle = "rgba(8, 10, 9, .75)";
+    roundedRect(bottom, geometry.inputX, geometry.inputY, geometry.inputWidth, geometry.inputHeight, geometry.inputRadius); bottom.fill();
     bottom.strokeStyle = "#3f5147"; bottom.stroke();
     drawBitmapText(bottom, font, overlay.value, geometry.textX, geometry.textY, "#ffffff");
-    if (Math.floor(now / 460) % 2 === 0) {
+    if (Math.floor(now / 500) % 2 === 0) {
       const caretX = geometry.textX + measureBitmapText(font, Array.from(overlay.value).slice(0, textCursor(overlay)).join(""));
       bottom.fillStyle = "#63e4a4";
       bottom.fillRect(caretX, geometry.caretY, 1, geometry.caretHeight);
@@ -546,11 +558,7 @@ function boot() {
     // ブラウザ側は高リフレッシュレートでも余分なrAFを描画せず、30FPSへ固定する。
     nextFrameAt = now + FRAME.interval;
     controls.update(now);
-    const stylePreviewDrawn = window.ACNLStylePreview?.drawIfActive?.(top, menu, font) === true;
-    if (!stylePreviewDrawn) {
-      top.fillStyle = topBackgroundColor.value;
-      top.fillRect(0, 0, topCanvas.width, topCanvas.height);
-    }
+    top.fillStyle = topBackgroundColor.value; top.fillRect(0, 0, topCanvas.width, topCanvas.height);
     bottom.fillStyle = bottomBackgroundColor.value; bottom.fillRect(0, 0, bottomCanvas.width, bottomCanvas.height);
     const notices = timeline.sample(now);
     for (const notice of notices) drawNotice(notice);
