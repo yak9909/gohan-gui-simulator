@@ -4,9 +4,20 @@
   if (typeof document === "undefined") return;
 
   const MENU = root.CTRPFUiModel?.MENU;
+  const formatValue = root.CTRPFUiModel?.formatValue;
   const HOLD_CANCEL_THRESHOLD = root.GohanIssueFixes?.HOLD_CANCEL_THRESHOLD ?? (2 / 5);
   const VALUE_LOCK_MARKER_COLOR = "#5cc8ff";
+  const VALUE_LOCK_VALUE_COLOR = "#5cc8ff";
   if (!MENU) return;
+
+  function measureBitmapText(font, text) {
+    let width = 0;
+    for (const character of Array.from(String(text))) {
+      const glyph = font.glyphs[String(character.codePointAt(0))];
+      width += glyph ? glyph.advance : 4;
+    }
+    return width;
+  }
 
   function drawBitmapText(context, font, text, x, y, color) {
     let cursor = Math.round(x);
@@ -64,13 +75,14 @@
     }, true);
   }
 
-  function drawValueLockMarkers(context, menu, menuX, now) {
+  function drawValueLockMarkers(context, font, numericFont, menu, menuX, now) {
     if (typeof menu.isItemFixed !== "function") return;
     const frame = menu.currentFrame();
     if (!frame?.items?.length) return;
     const start = menu.viewportStart(now);
     const firstIndex = Math.max(0, Math.floor(start));
     const lastIndex = Math.min(frame.items.length - 1, Math.ceil(start) + MENU.visibleRows);
+    const activationOffset = menu.activationBounceOffset(now);
     for (let index = firstIndex; index <= lastIndex; index++) {
       const entry = frame.items[index];
       if (!menu.isItemFixed(entry)) continue;
@@ -78,6 +90,22 @@
       // VALUE LOCKは既存の項目色を変えず、行左端の1px縦線だけで示す。
       context.fillStyle = VALUE_LOCK_MARKER_COLOR;
       context.fillRect(menuX + 4, y - 2, 1, 12);
+
+      // 固定中の「値」だけはSYNC色の水色で上書きし、項目名やSアイコンの色は変えない。
+      const value = typeof formatValue === "function" ? formatValue(entry, now) : "";
+      if (value) {
+        const valueFont = entry.type === "linked-value" && numericFont ? numericFont : font;
+        const valueWidth = measureBitmapText(valueFont, value);
+        const itemOffset = index === frame.selection ? Math.round(activationOffset) : 0;
+        drawBitmapText(
+          context,
+          valueFont,
+          value,
+          menuX + MENU.width - 8 - valueWidth + itemOffset,
+          y,
+          VALUE_LOCK_VALUE_COLOR
+        );
+      }
     }
   }
 
@@ -86,6 +114,7 @@
     const menu = root.__gohanMenuModel;
     const topCanvas = document.getElementById("topScreen");
     const font = root.MISAKI_GOTHIC_2ND_8;
+    const numericFont = root.PIXEL_MPLUS_10_NUMERIC_8;
     if (!menu || !topCanvas || !font || !menu.visible) return;
 
     const amount = menu.openAmount(now);
@@ -108,7 +137,7 @@
       }
     }
 
-    drawValueLockMarkers(context, menu, menuX, now);
+    drawValueLockMarkers(context, font, numericFont, menu, menuX, now);
 
     // Replace the legacy START:FAVORITES hint with the settings contract.
     const frame = menu.currentFrame();
