@@ -71,7 +71,11 @@ test("issue #2 cancels X/L holds released from 2/5 progress through completion t
   long.menu.update(700);
   assert.equal(long.menu.dialog?.type, "apply-all", "full hold still opens the all-apply confirmation");
 
-  assert.match(overlaySource, /first 2\/5/);
+  assert.match(overlaySource, /hold && hold\.progress < HOLD_CANCEL_THRESHOLD/);
+  assert.match(overlaySource, /progressWidth = Math\.round\(barWidth \* hold\.progress\)/);
+  assert.match(overlaySource, /fillRect\(menuX \+ 10, 211, progressWidth, 2\)/);
+  assert.doesNotMatch(overlaySource, /Math\.min\(hold\.progress, HOLD_CANCEL_THRESHOLD\)/);
+  assert.doesNotMatch(overlaySource, /grayWidth/);
   assert.match(overlaySource, /#747b76/);
 });
 
