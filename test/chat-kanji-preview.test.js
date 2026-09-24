@@ -40,6 +40,7 @@ test("preview uses the supplied ACNL screenshot and Garden BCFNT subset", () => 
   assert.deepEqual(data.source.fontCell, [17, 24]);
   assert.equal(data.source.fontFormat, "A4");
   assert.deepEqual(data.candidates, ["漢字", "感じ", "幹事", "完治"]);
+  assert.equal(data.glyphs["事"].rows[5], "1333339f833333200", "BCFNT A4 decoding must use the low nibble first");
 
   for (const character of new Set(Array.from(data.candidates.join("")))) {
     const glyph = data.glyphs[character];
