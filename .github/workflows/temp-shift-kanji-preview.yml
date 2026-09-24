@@ -1,0 +1,51 @@
+name: Shift kanji preview down 1px
+
+on:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Shift conversion strip down one pixel
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('chat-kanji-preview.js')
+          text = path.read_text(encoding='utf-8')
+          old = 'x: 8, y: 48, width: 304, height: 17,\n    gap: 2, paddingX: 4, textCellY: 47, textScale: 0.72'
+          new = 'x: 8, y: 49, width: 304, height: 17,\n    gap: 2, paddingX: 4, textCellY: 48, textScale: 0.72'
+          if old not in text:
+              raise SystemExit('candidate bar constants not found')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          test = Path('test/chat-kanji-preview.test.js')
+          text = test.read_text(encoding='utf-8')
+          text = text.replace('assert.equal(preview.CANDIDATE_BAR.y, 48);', 'assert.equal(preview.CANDIDATE_BAR.y, 49);')
+          text = text.replace('assert.equal(preview.CANDIDATE_BAR.y + preview.CANDIDATE_BAR.height, 65);', 'assert.equal(preview.CANDIDATE_BAR.y + preview.CANDIDATE_BAR.height, 66);')
+          test.write_text(text, encoding='utf-8')
+
+          readme = Path('README.md')
+          text = readme.read_text(encoding='utf-8')
+          text = text.replace('（Y=48〜64）', '（Y=49〜65）')
+          readme.write_text(text, encoding='utf-8')
+          PY
+      - name: Remove temporary workflow
+        run: rm .github/workflows/temp-shift-kanji-preview.yml
+      - name: Commit shift
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add chat-kanji-preview.js test/chat-kanji-preview.test.js README.md .github/workflows/temp-shift-kanji-preview.yml
+          git commit -m "Shift kanji conversion preview down 1px"
+          git push
