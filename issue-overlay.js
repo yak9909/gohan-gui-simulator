@@ -122,19 +122,18 @@
     const context = topCanvas.getContext("2d");
     const menuX = Math.round(-MENU.width + MENU.width * amount);
 
-    // Issue #2: the first 2/5 of the long-press bar is deliberately gray.
+    // 長押し進捗は2/5未満なら「進んだ部分すべて」を灰色で上書きする。
+    // 2/5到達後は下層の通常描画（黄色）をそのまま見せ、途中で二色に分割しない。
     const hold = menu.holdActionProgress(now);
-    if (hold) {
+    if (hold && hold.progress < HOLD_CANCEL_THRESHOLD) {
       const barWidth = MENU.width - 22;
-      const grayWidth = Math.round(barWidth * Math.min(hold.progress, HOLD_CANCEL_THRESHOLD));
-      if (grayWidth > 0) {
+      const progressWidth = Math.round(barWidth * hold.progress);
+      if (progressWidth > 0) {
         context.fillStyle = "#747b76";
-        context.fillRect(menuX + 10, 211, grayWidth, 2);
+        context.fillRect(menuX + 10, 211, progressWidth, 2);
       }
-      if (hold.progress < HOLD_CANCEL_THRESHOLD) {
-        context.strokeStyle = "#747b76";
-        context.strokeRect(menuX + 5.5, 201.5, MENU.width - 13, 13);
-      }
+      context.strokeStyle = "#747b76";
+      context.strokeRect(menuX + 5.5, 201.5, MENU.width - 13, 13);
     }
 
     drawValueLockMarkers(context, font, numericFont, menu, menuX, now);
