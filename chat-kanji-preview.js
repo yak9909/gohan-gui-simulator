@@ -7,8 +7,8 @@
   if (!data) return;
 
   const CANDIDATE_BAR = Object.freeze({
-    x: 8, y: 48, width: 304, height: 17,
-    gap: 2, paddingX: 4, textCellY: 47, textScale: 0.72
+    x: 8, y: 49, width: 304, height: 17,
+    gap: 2, paddingX: 4, textCellY: 48, textScale: 0.72
   });
   const CANDIDATE_COLORS = Object.freeze({
   // The supplied ACNL screenshot uses this dark brown on utility keys such as delete/space.
