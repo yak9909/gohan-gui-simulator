@@ -55,7 +55,8 @@
   }
 
   function isPreviewEnabled(menu) {
-    return previewItem(menu)?.appliedValue === true;
+    const entry = previewItem(menu);
+    return Boolean(entry && (entry.value === true || entry.appliedValue === true));
   }
 
   function ensureStyleState(menu) {
