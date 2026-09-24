@@ -1,41 +1,36 @@
 "use strict";
 
 (function (root) {
-  const core = typeof module !== "undefined" && module.exports
-    ? require("./ui-model.js")
-    : root.CTRPFUiModel;
   const data = typeof module !== "undefined" && module.exports
     ? require("./style-preview-data.js")
     : root.ACNL_STYLE_PREVIEW_DATA;
   const model = typeof module !== "undefined" && module.exports
     ? require("./style-preview-model.js")
     : root.ACNLStylePreviewModel;
-  if (!core || !data || !model) return;
+  if (!data || !model) return;
 
-  const { MENU, clamp, mix, selectionPulse, selectionOutlinePulse, listboxAmount, listboxScrollPosition } = core;
-  const PANEL = Object.freeze({ x: 0, y: 0, width: MENU.width, height: 240, rowY: 28, rowHeight: MENU.itemHeight });
-  const ANIMATION = Object.freeze({
-    introDuration: MENU.enterDuration,
-    selectionDuration: MENU.selectionMoveDuration,
-    valueDuration: MENU.valueBounceDuration
+  const PANEL = Object.freeze({
+    x: 8,
+    y: 12,
+    width: 154,
+    height: 184,
+    rowY: 38,
+    rowHeight: 23
   });
   const COLORS = Object.freeze({
-    panel: "rgba(12, 16, 13, .78)",
-    edge: "rgba(99, 228, 164, .90)",
-    header: "rgba(28, 43, 34, .74)",
-    footer: "rgba(21, 27, 23, .76)",
-    selected: "41, 69, 55",
-    selectedBorder: "99, 228, 164",
-    text: "#aeb9b1",
-    selectedText: "#ffffff",
-    value: "#aeb9b1",
-    selectedValue: "#ffffff",
-    accent: "#63e4a4",
-    hint: "#829087",
-    listPanel: "rgba(10, 13, 11, .82)",
-    listSelected: "rgba(41, 69, 55, .64)",
-    listBorder: "#63e4a4",
-    markerBorder: "#4f6c5b"
+    panel: "rgba(7, 9, 8, .80)",
+    border: "rgba(99, 228, 164, .90)",
+    header: "#ffffff",
+    sub: "#9bb4a4",
+    row: "rgba(14, 19, 16, .58)",
+    selected: "rgba(41, 69, 55, .82)",
+    selectedBorder: "#63e4a4",
+    label: "#c4cec7",
+    selectedLabel: "#ffffff",
+    value: "#8ff0b7",
+    hint: "#91a097",
+    markerPanel: "rgba(7, 9, 8, .66)",
+    markerBorder: "rgba(255, 255, 255, .42)"
   });
 
   let sourceImage = null;
@@ -72,8 +67,7 @@
   }
 
   function drawPixelBorder(context, x, y, width, height, color) {
-    // Canvasのstrokeは半ピクセル補正に依存するため、CTRPFへそのまま移しやすい4本の1px矩形で枠を作る。
-    // これならシミュレーターと実機で上下左右の線幅を同じ整数ピクセルに固定できる。
+    // CTRPFへ移植しやすいよう、strokeではなく整数座標の1px矩形4本で枠を構成する。
     x = Math.round(x);
     y = Math.round(y);
     width = Math.max(1, Math.round(width));
@@ -87,136 +81,72 @@
     }
   }
 
-  function drawScrollBar(context, x, y, height, visibleRows, itemCount, scrollPosition) {
-    if (itemCount <= visibleRows) return;
-    const thumbHeight = Math.max(10, Math.floor(height * visibleRows / itemCount));
-    const maximumScroll = itemCount - visibleRows;
-    const thumbY = y + Math.round((height - thumbHeight) * clamp(scrollPosition / maximumScroll, 0, 1));
-    context.fillStyle = "rgba(38, 52, 44, .66)";
-    context.fillRect(x, y, 2, height);
-    context.fillStyle = "rgba(99, 228, 164, .88)";
-    context.fillRect(x, thumbY, 2, thumbHeight);
-  }
-
-  function drawPreviewMarker(context, font, amount) {
-    if (amount <= 0) return;
-    const x = 253;
-    const y = 8;
-    const width = 72;
-    const height = 28;
-    context.save();
-    context.globalAlpha *= amount;
-    context.fillStyle = COLORS.listPanel;
-    context.fillRect(x, y, width, height);
-    drawPixelBorder(context, x, y, width, height, COLORS.markerBorder);
-    drawBitmapText(context, font, "変更モデル", x + 8, y + 6, COLORS.accent);
-    drawBitmapText(context, font, "プレビュー", x + 8, y + 17, COLORS.text);
-    context.restore();
-  }
-
-  function drawInlineList(context, menu, font, menuX, now) {
-    const state = model.ensureStyleState(menu);
-    const list = state.inlineList;
-    if (!list) return;
-    const field = model.STYLE_FIELDS[list.fieldIndex];
-    if (!field) return;
-    const amount = listboxAmount(list, now);
-    if (amount <= 0) return;
-
-    const visibleRows = Math.min(list.visibleRows, field.options.length);
-    const height = visibleRows * 14 + 6;
-    const row = list.fieldIndex;
-    const y = Math.min(28 + row * MENU.itemHeight + 14, 212 - height);
-    const x = Math.round(mix(menuX + MENU.width, menuX + 21, amount));
-    const scrollPosition = listboxScrollPosition(list, now);
-
-    // 通常メニューのinline listと同一の座標・速度・色を使う。
-    // CTRPF移植時も「親行の直下から左へスライド」「14px行」という関係を維持する。
-    context.save();
-    context.globalAlpha *= amount;
-    context.fillStyle = COLORS.listPanel;
-    context.fillRect(x, y, 132, height);
-    drawPixelBorder(context, x, y, 132, height, COLORS.listBorder);
-    context.beginPath();
-    context.rect(x + 2, y + 2, 125, height - 4);
-    context.clip();
-
-    const firstIndex = Math.max(0, Math.floor(scrollPosition));
-    const lastIndex = Math.min(field.options.length - 1, Math.ceil(scrollPosition) + visibleRows);
-    for (let index = firstIndex; index <= lastIndex; index++) {
-      const rowY = Math.round(y + 3 + (index - scrollPosition) * 14);
-      if (index === list.index) {
-        context.fillStyle = COLORS.listSelected;
-        context.fillRect(x + 3, rowY, 122, 12);
-      }
-      drawBitmapText(context, font, field.options[index], x + 8, rowY + 2, index === list.index ? COLORS.selectedText : COLORS.text);
-    }
-    context.restore();
-    drawScrollBar(context, x + 128, y + 3, height - 6, visibleRows, field.options.length, scrollPosition);
+  function panelX(amount) {
+    return Math.round(-PANEL.width + (PANEL.x + PANEL.width) * amount);
   }
 
   function drawPanel(context, menu, font, now = 0, amount = 1) {
-    const state = model.updateStyleState(menu, now);
-    if (amount <= 0) return;
-    const menuX = Math.round(-MENU.width + MENU.width * amount);
+    if (!context || !menu || amount <= 0) return;
+    const state = model.ensureStyleState(menu);
+    const x = panelX(amount);
     const activationOffset = model.activationBounceOffset(menu, now);
 
     context.save();
+    context.globalAlpha *= amount;
     context.fillStyle = COLORS.panel;
-    context.fillRect(menuX, 0, MENU.width, 240);
-    context.fillStyle = COLORS.edge;
-    context.fillRect(menuX + MENU.width - 2, 0, 2, 240);
-    context.fillStyle = COLORS.header;
-    context.fillRect(menuX, 0, MENU.width - 2, 23);
-    drawBitmapText(context, font, "スタイル変更", menuX + 7, 7, "#ffffff");
-    const headerValue = "設定";
-    drawBitmapText(context, font, headerValue, menuX + MENU.width - 8 - measureBitmapText(font, headerValue), 7, "#79d9a7");
+    context.fillRect(x, PANEL.y, PANEL.width, PANEL.height);
+    drawPixelBorder(context, x, PANEL.y, PANEL.width, PANEL.height, COLORS.border);
+    context.fillStyle = COLORS.border;
+    context.fillRect(x, PANEL.y, 2, PANEL.height);
 
-    context.save();
-    context.beginPath();
-    context.rect(menuX + 2, 24, MENU.width - 6, 188);
-    context.clip();
+    drawBitmapText(context, font, "スタイル変更", x + 8, PANEL.y + 7, COLORS.header);
+    drawBitmapText(context, font, "十字キー+A", x + 83, PANEL.y + 7, COLORS.sub);
 
-    const animatedRow = clamp(model.selectionPosition(menu, now), 0, model.STYLE_FIELDS.length - 1);
-    const highlightY = Math.round(28 + animatedRow * MENU.itemHeight + model.selectionBoundaryBounceOffset(menu, now));
-    const highlightX = menuX + 4 + Math.round(activationOffset);
-    const highlightWidth = MENU.width - 10;
-    const highlightHeight = 15;
-    context.fillStyle = `rgba(${COLORS.selected}, ${selectionPulse(now).toFixed(3)})`;
-    context.fillRect(highlightX, highlightY - 3, highlightWidth, highlightHeight);
+    const selectionY = PANEL.rowY + model.selectionPosition(menu, now) * PANEL.rowHeight + model.selectionBoundaryBounceOffset(menu, now);
+    context.fillStyle = COLORS.selected;
+    context.fillRect(x + 5 + Math.round(activationOffset), Math.round(selectionY), PANEL.width - 10, PANEL.rowHeight - 2);
     drawPixelBorder(
       context,
-      highlightX,
-      highlightY - 3,
-      highlightWidth,
-      highlightHeight,
-      `rgba(${COLORS.selectedBorder}, ${selectionOutlinePulse(now).toFixed(3)})`
+      x + 5 + Math.round(activationOffset),
+      Math.round(selectionY),
+      PANEL.width - 10,
+      PANEL.rowHeight - 2,
+      COLORS.selectedBorder
     );
 
     model.STYLE_FIELDS.forEach((field, index) => {
-      const y = 28 + index * MENU.itemHeight;
+      const y = PANEL.rowY + index * PANEL.rowHeight;
       const selected = index === state.selectedIndex;
-      const itemOffset = selected ? Math.round(activationOffset) : 0;
-      const color = selected ? COLORS.selectedText : COLORS.text;
-      drawBitmapText(context, font, "L", menuX + 8 + itemOffset, y, COLORS.accent);
-      drawBitmapText(context, font, field.label, menuX + 27 + itemOffset, y, color);
+      if (!selected) {
+        context.fillStyle = COLORS.row;
+        context.fillRect(x + 5, y, PANEL.width - 10, PANEL.rowHeight - 2);
+      }
+
+      drawBitmapText(context, font, field.label, x + 11, y + 4, selected ? COLORS.selectedLabel : COLORS.label);
       const value = model.currentStyleValue(menu, index);
-      const valueWidth = measureBitmapText(font, value);
-      drawBitmapText(context, font, value, menuX + MENU.width - 8 - valueWidth + itemOffset, y, selected ? COLORS.selectedValue : COLORS.value);
+      const display = `<${value}>`;
+      const valueWidth = measureBitmapText(font, display);
+      const valueOffset = model.valueBounceOffset(menu, index, now);
+      drawBitmapText(context, font, display, x + PANEL.width - 10 - valueWidth + valueOffset, y + 13, COLORS.value);
     });
+
+    drawBitmapText(context, font, "上下:項目", x + 8, PANEL.y + PANEL.height - 16, COLORS.hint);
+    drawBitmapText(context, font, "左右/A:変更", x + 78, PANEL.y + PANEL.height - 16, COLORS.hint);
     context.restore();
+  }
 
-    context.fillStyle = COLORS.footer;
-    context.fillRect(menuX, 216, MENU.width - 2, 24);
-    if (state.inlineList) {
-      drawBitmapText(context, font, "A決定 B戻る", menuX + 6, 220, COLORS.hint);
-      drawBitmapText(context, font, "上下:選択", menuX + 6, 230, COLORS.hint);
-    } else {
-      drawBitmapText(context, font, "A選択", menuX + 6, 220, COLORS.hint);
-      drawBitmapText(context, font, "上下:項目", menuX + 6, 230, COLORS.hint);
-    }
-
-    drawInlineList(context, menu, font, menuX, now);
+  function drawAfterMarker(context, font, amount = 1) {
+    if (!context || amount <= 0) return;
+    const x = 259;
+    const y = 10;
+    const width = 53;
+    const height = 14;
+    context.save();
+    context.globalAlpha *= amount;
+    context.fillStyle = COLORS.markerPanel;
+    context.fillRect(x, y, width, height);
+    drawPixelBorder(context, x, y, width, height, COLORS.markerBorder);
+    drawBitmapText(context, font, "AFTER", x + 16, y + 3, "#ffffff");
     context.restore();
   }
 
@@ -228,7 +158,7 @@
     context.drawImage(image, 0, 0, data.image.width, data.image.height);
     if (showUi) {
       drawPanel(context, menu, font, now, amount);
-      drawPreviewMarker(context, font, amount);
+      drawAfterMarker(context, font, amount);
     }
     context.restore();
     return true;
@@ -252,12 +182,9 @@
     if (!imageReady(image)) return false;
 
     const now = typeof performance !== "undefined" && typeof performance.now === "function" ? performance.now() : 0;
-    const showUi = !menu.visible && !menu.dialog && !menu.overlay && !menu.inlineList;
-    model.setPanelVisible(menu, showUi, now);
     const amount = model.panelAmount(menu, now);
 
-    // 背景画像はチート有効中常時表示し、操作パネルだけを通常メニューと同じ320msで出し入れする。
-    // CTRPFでは毎フレーム同じamountからX座標を算出すれば、Canvasのtransform等は不要。
+    // 描画関数は状態を変更しない。表示/非表示の遷移はmenu.update()側で決定済みの値だけを参照する。
     return drawPreview(context, image, menu, font, amount > 0.001, now, amount);
   }
 
@@ -267,17 +194,15 @@
 
   const api = Object.freeze({
     PANEL,
-    ANIMATION,
     COLORS,
     data,
     measureBitmapText,
     drawBitmapText,
     drawPixelBorder,
-    drawScrollBar,
-    drawPreviewMarker,
-    drawAfterMarker: drawPreviewMarker,
-    drawInlineList,
+    panelX,
     drawPanel,
+    drawAfterMarker,
+    drawPreviewMarker: drawAfterMarker,
     drawPreview,
     drawIfActive,
     imageReady,
