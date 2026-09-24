@@ -80,6 +80,7 @@ test("candidate glyphs are compact and stay inside the strip below the input fie
   assert.ok(preview.CANDIDATE_BAR.textScale < 1);
   assert.ok(pixels.every((pixel) => pixel.y >= preview.CANDIDATE_BAR.y && pixel.y < preview.CANDIDATE_BAR.y + preview.CANDIDATE_BAR.height));
   assert.equal(preview.CANDIDATE_BAR.y, 49);
+  assert.equal(preview.CANDIDATE_BAR.textCellY, 48);
   assert.equal(preview.CANDIDATE_BAR.y + preview.CANDIDATE_BAR.height, 66);
   assert.ok(pixels.some((pixel) => pixel.alpha > 0 && pixel.alpha < 1), "A4 alpha coverage should survive compact rendering");
 });
