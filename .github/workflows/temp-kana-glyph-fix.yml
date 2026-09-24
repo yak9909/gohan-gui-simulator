@@ -1,0 +1,49 @@
+name: Apply corrected ACNL kana glyphs
+
+on:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Replace misaligned extra BCFNT glyphs
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('chat-kanji-preview.js')
+          text = path.read_text(encoding='utf-8')
+          block = '''  const EXTRA_GLYPHS = Object.freeze({
+    "監":{"left":0,"glyphWidth":16,"charWidth":16,"rows":["00000000000000000","00000000000000000","00000000000000000","00000000000000000","00111111028200000","0bffffff68f900000","0fa07f100bfc99950","0ffdefec0ee999950","0fa1117f5f6000000","0fd999cfad0000000","0fc5af74127777600","0fc5af7533ddddc00","06bbbbbb900000000","00255555555553000","01febefbcfebef300","03f90bf01f907f500","03f90bf01f907f500","05fa1cf13fa18f700","7ffffffffffffff80","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000"]},
+    "か":{"left":0,"glyphWidth":15,"charWidth":16,"rows":["00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00001d70000000000","00006fb0006000000","0000af7002fe40000","2555ef97503ff6000","7ffeffddfe25ff600","0008f8005fa09ff00","000ef3000ff00eb00","004fd0000ff000000","00af70000ff000000","02ff10003fd000000","09fa00006fa000000","2ff20000df6000000","afa1fd9dfd0000000","be106cffb20000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000"]},
+    "ん":{"left":0,"glyphWidth":15,"charWidth":16,"rows":["00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000480000000000","00000ef4000000000","00006fd0000000000","0000df60000000000","0004fe00000000000","000af700000000000","001ff000000000000","008fa9ec000007600","00effcef60000e900","05ff906f70002f600","0bfc005f90008f200","1ff4004fb003fb000","6fd0001ff87ff2000","9f700008fffe40000","03000000475000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000"]},
+    "カ":{"left":1,"glyphWidth":14,"charWidth":16,"rows":["00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","000006d4000000000","00000bf8000000000","00000bf7000000000","4fffffffffffa0000","05555ff9556ef6000","00001ff2000bf7000","00004ff0000bf7000","00008fa0000df6000","0000ef40000ef5000","0006fc00001ff2000","001ef300005ff0000","00cf600000cfa0000","2df603fdbeff20000","ec30004aefd400000","10000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000"]},
+    "ン":{"left":1,"glyphWidth":14,"charWidth":16,"rows":["00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","8c710000000000000","3dff8100000020000","00bffe000001f5000","0009ff000007f2000","00005300000ec0000","00000000009f50000","0000000005fd00000","000000006ff300000","0000001aff5000000","00004afff50000000","1adffffc200000000","5ffffb40000000000","06740000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000"]},
+    "ジ":{"left":0,"glyphWidth":15,"charWidth":16,"rows":["00000000000000000","00000000000000000","00000000000000000","00000000000000000","000000000690e6000","0063000005e49e300","01dffa3000ce1eb00","0007fff1003e16700","00001bc000006c000","584000000000db000","7fff91000003f6000","01affa00000cf0000","0005b400008f80000","0000000007fd00000","00000001aff200000","0000039ffe3000000","04acffffb10000000","0cffffa3000000000","02763000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000"]}
+  });'''
+          pattern = r'  const EXTRA_GLYPHS = Object\.freeze\(\{.*?\n  \}\);\n\n  const PREVIEW_CANDIDATES'
+          text, count = re.subn(pattern, block + '\n\n  const PREVIEW_CANDIDATES', text, count=1, flags=re.S)
+          if count != 1:
+              raise SystemExit('EXTRA_GLYPHS block not found')
+          path.write_text(text, encoding='utf-8')
+          PY
+      - name: Remove temporary workflow
+        run: rm .github/workflows/temp-kana-glyph-fix.yml
+      - name: Commit corrected glyphs
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add chat-kanji-preview.js .github/workflows/temp-kana-glyph-fix.yml
+          git commit -m "Correct ACNL kana glyph cell extraction"
+          git push
