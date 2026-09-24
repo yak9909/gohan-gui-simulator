@@ -9,7 +9,7 @@ const model = require("../style-preview-model.js");
 const data = require("../style-preview-data.js");
 const preview = require("../style-preview.js");
 
-test("style-change cheat uses Japanese bitmap-safe labels and requested settings", () => {
+test("style-change cheat exposes the requested settings through its own UI", () => {
   const menu = new core.CheatMenuModel(() => {});
   menu.currentFrame();
 
@@ -25,12 +25,9 @@ test("style-change cheat uses Japanese bitmap-safe labels and requested settings
   ]);
   assert.deepEqual(model.STYLE_FIELDS[4].options, ["おとこ", "おんな"]);
   assert.deepEqual(model.STYLE_FIELDS[5].options, ["みせる", "かくす"]);
-  for (const field of model.STYLE_FIELDS) {
-    for (const option of field.options) assert.doesNotMatch(option, /[<>]/);
-  }
 });
 
-test("style preview follows the normal cheat applied-value contract", () => {
+test("style preview follows the same applied-value contract as normal cheats", () => {
   const menu = new core.CheatMenuModel(() => {});
   const entry = model.previewItem(menu);
   assert.equal(model.isPreviewEnabled(menu), false);
@@ -41,7 +38,7 @@ test("style preview follows the normal cheat applied-value contract", () => {
   assert.equal(model.isPreviewEnabled(menu), true);
 });
 
-test("A opens the same list-style chooser contract instead of cycling values directly", () => {
+test("custom style UI keeps direct D-pad and A value editing", () => {
   const menu = new core.CheatMenuModel(() => {});
   const entry = model.previewItem(menu);
   entry.value = true;
@@ -49,24 +46,46 @@ test("A opens the same list-style chooser contract instead of cycling values dir
   const state = model.ensureStyleState(menu);
   const original = state.values[0];
 
-  menu.handle("a", 100, true, false);
-  assert.ok(state.inlineList);
-  assert.equal(state.inlineList.fieldIndex, 0);
-  assert.equal(state.inlineList.index, original);
-  assert.equal(state.values[0], original);
-  assert.equal(state.inlineList.animationDuration, core.LISTBOX.animationDuration);
-  menu.handle("a", 101, false, false);
+  menu.handle("right", 100, true, false);
+  assert.equal(state.values[0], (original + 1) % model.STYLE_FIELDS[0].options.length);
+  assert.equal(state.valueBounceIndex, 0);
+  assert.equal(state.valueBounceDirection, 1);
+  menu.handle("right", 101, false, false);
 
-  menu.handle("down", 290, true, false);
-  assert.equal(state.inlineList.index, original + 1);
-  menu.handle("down", 291, false, false);
-  menu.handle("a", 300, true, false);
-  assert.equal(state.values[0], original + 1);
-  assert.equal(model.currentStyleValue(menu, 0), "5ばん");
-  assert.equal(state.inlineList.closing, true);
+  menu.handle("a", 120, true, false);
+  assert.equal(state.values[0], (original + 2) % model.STYLE_FIELDS[0].options.length);
+  assert.equal(state.activationBounceStartedAt, 120);
+  menu.handle("a", 121, false, false);
+
+  menu.handle("down", 140, true, false);
+  assert.equal(state.selectedIndex, 1);
+  menu.handle("down", 141, false, false);
+  menu.handle("left", 160, true, false);
+  assert.equal(state.values[1], model.STYLE_FIELDS[1].options.length - 1);
+  menu.handle("left", 161, false, false);
+
+  assert.equal(state.inlineList, undefined, "custom style UI must not be converted into the normal menu list UI");
 });
 
-test("style selection uses the simulator menu timing and input capture rules", () => {
+test("style state is advanced by menu.update rather than by drawing", () => {
+  const menu = new core.CheatMenuModel(() => {});
+  const entry = model.previewItem(menu);
+  entry.value = true;
+  entry.appliedValue = true;
+  const state = model.ensureStyleState(menu);
+
+  assert.equal(state.panelTarget, 0);
+  menu.update(100);
+  assert.equal(state.panelTarget, 1);
+  assert.equal(model.panelAmount(menu, 100), 0);
+  assert.equal(model.panelAmount(menu, 100 + model.STYLE_UI.panelDuration), 1);
+
+  menu.open(400);
+  menu.update(400);
+  assert.equal(state.panelTarget, 0);
+});
+
+test("style UI uses its own layout and timing while sharing menu input lifecycle", () => {
   const menu = new core.CheatMenuModel(() => {});
   const entry = model.previewItem(menu);
   entry.value = true;
@@ -76,33 +95,39 @@ test("style selection uses the simulator menu timing and input capture rules", (
   menu.handle("down", 100, true, false);
   assert.equal(state.selectedIndex, 1);
   assert.equal(model.selectionPosition(menu, 100), 0);
-  assert.equal(model.selectionPosition(menu, 100 + core.MENU.selectionMoveDuration), 1);
+  assert.equal(model.selectionPosition(menu, 100 + model.STYLE_UI.selectionDuration), 1);
   menu.handle("down", 101, false, false);
 
   const capture = menu.gameInputCaptureState();
   assert.equal(capture.active, true);
   assert.equal(capture.blockGameButtons, true);
-  assert.equal(preview.PANEL.width, core.MENU.width);
-  assert.equal(preview.PANEL.rowHeight, core.MENU.itemHeight);
-  assert.equal(preview.ANIMATION.introDuration, core.MENU.enterDuration);
-  assert.equal(preview.ANIMATION.selectionDuration, core.MENU.selectionMoveDuration);
+
+  assert.equal(preview.PANEL.width, 154);
+  assert.equal(preview.PANEL.rowHeight, 23);
+  assert.notEqual(preview.PANEL.width, core.MENU.width);
+  assert.notEqual(preview.PANEL.rowHeight, core.MENU.itemHeight);
+  assert.notEqual(model.STYLE_UI.panelDuration, core.MENU.enterDuration);
+  assert.notEqual(model.STYLE_UI.selectionDuration, core.MENU.selectionMoveDuration);
 });
 
-test("B closes a style chooser without changing the value", () => {
+test("drawing the custom panel does not mutate model state", () => {
   const menu = new core.CheatMenuModel(() => {});
   const entry = model.previewItem(menu);
   entry.value = true;
   entry.appliedValue = true;
+  menu.update(100);
   const state = model.ensureStyleState(menu);
-  const original = state.values[0];
+  const before = JSON.stringify(state);
+  const context = {
+    globalAlpha: 1,
+    fillStyle: "",
+    save() {},
+    restore() {},
+    fillRect() {}
+  };
 
-  menu.handle("a", 100, true, false);
-  menu.handle("a", 101, false, false);
-  menu.handle("down", 290, true, false);
-  menu.handle("down", 291, false, false);
-  menu.handle("b", 300, true, false);
-  assert.equal(state.values[0], original);
-  assert.equal(state.inlineList.closing, true);
+  preview.drawPanel(context, menu, { glyphs: {} }, 190, 1);
+  assert.equal(JSON.stringify(state), before);
 });
 
 test("pixel border uses uniform one-pixel edges", () => {
@@ -111,12 +136,12 @@ test("pixel border uses uniform one-pixel edges", () => {
     fillStyle: "",
     fillRect(...args) { calls.push(args); }
   };
-  preview.drawPixelBorder(context, 0, 0, 160, 240, "#fff");
+  preview.drawPixelBorder(context, 8, 12, 154, 184, "#fff");
   assert.deepEqual(calls, [
-    [0, 0, 160, 1],
-    [0, 239, 160, 1],
-    [0, 1, 1, 238],
-    [159, 1, 1, 238]
+    [8, 12, 154, 1],
+    [8, 195, 154, 1],
+    [8, 13, 1, 182],
+    [161, 13, 1, 182]
   ]);
 });
 
