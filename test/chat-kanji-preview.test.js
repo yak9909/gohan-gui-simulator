@@ -57,7 +57,7 @@ test("candidate glyphs are compact and stay inside the strip below the input fie
   const context = {
     globalAlpha: 1,
     fillStyle: "",
-    fillRect(x, y, width, height) { pixels.push({ x, y, width, height }); }
+    fillRect(x, y, width, height) { pixels.push({ x, y, width, height, alpha: this.globalAlpha }); }
   };
   preview.drawBcfntText(
     context,
@@ -73,7 +73,16 @@ test("candidate glyphs are compact and stay inside the strip below the input fie
   assert.ok(pixels.every((pixel) => pixel.y >= preview.CANDIDATE_BAR.y && pixel.y < preview.CANDIDATE_BAR.y + preview.CANDIDATE_BAR.height));
   assert.equal(preview.CANDIDATE_BAR.y, 48);
   assert.equal(preview.CANDIDATE_BAR.y + preview.CANDIDATE_BAR.height, 65);
-  assert.equal(preview.CANDIDATE_COLORS.panel, "#947d63");
+  assert.ok(pixels.some((pixel) => pixel.alpha > 0 && pixel.alpha < 1), "A4 alpha coverage should survive compact rendering");
+});
+
+test("candidate strip uses the ACNL utility-key dark brown and only highlights selection pale green", () => {
+  assert.equal(preview.CANDIDATE_COLORS.panel, "#522810");
+  assert.equal(preview.CANDIDATE_COLORS.border, "#522810");
+  assert.equal(preview.CANDIDATE_COLORS.separator, "#522810");
+  assert.equal(preview.CANDIDATE_COLORS.selected, "rgba(239, 255, 214, 0.24)");
+  assert.equal(preview.CANDIDATE_COLORS.text, "#fff3d6");
+  assert.equal(preview.CANDIDATE_COLORS.selectedText, "#fff3d6");
 });
 
 test("candidate list supports horizontal scrolling and selection-following", () => {
@@ -92,6 +101,14 @@ test("candidate list supports horizontal scrolling and selection-following", () 
   assert.ok(state.scrollX > 0, "selection should scroll the last candidate into view");
   preview.setCandidateIndex(state, 0, preview.DRAW_DATA);
   assert.equal(state.scrollX, 0, "selection should scroll back to the first candidate");
+});
+
+test("scaled BCFNT uses area-weighted coverage instead of max-pooling", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "chat-kanji-preview.js"), "utf8");
+  assert.match(source, /weightedAlpha/);
+  assert.match(source, /coveredArea/);
+  assert.match(source, /overlapX \* overlapY/);
+  assert.doesNotMatch(source, /alpha\s*=\s*Math\.max\(/);
 });
 
 test("preview renderer rasterizes BCFNT masks without browser text rendering", () => {
