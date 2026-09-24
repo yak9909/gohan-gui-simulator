@@ -63,11 +63,20 @@
     if (!menu.stylePreviewState) {
       menu.stylePreviewState = {
         selectedIndex: 0,
+
+        // CTRPF移植時も「現在選択中の項目」と「アニメーション開始位置」を分けて持つ。
+        // selectedIndexを入力直後に更新しつつ、描画側はselectionFromIndexから補間することで、
+        // 入力判定を遅延させずに選択枠だけを滑らかに移動できる。
         selectionFromIndex: 0,
         selectionDirection: 0,
         selectionStartedAt: 0,
+
         values: [...DEFAULT_VALUES],
         revision: 0,
+
+        // 値変更アニメーション用の最小状態。
+        // CTRPFではフレームごとに現在時刻を取得し、lastChangedAtとの差から表示オフセットを計算する。
+        // ブラウザ固有のanimation APIには依存させない設計にしている。
         lastChangedIndex: -1,
         lastChangeDirection: 0,
         lastChangedAt: 0
@@ -85,6 +94,9 @@
     const state = ensureStyleState(menu);
     const previous = state.selectedIndex;
     const next = wrapIndex(previous + direction, STYLE_FIELDS.length);
+
+    // 入力時点の選択位置と時刻を記録するだけにし、補間そのものは描画側で行う。
+    // この分離によりCTRPFへ移植する際も、入力処理と描画処理を独立させられる。
     state.selectionFromIndex = previous;
     state.selectionDirection = Math.sign(direction) || 0;
     state.selectionStartedAt = now;
@@ -99,6 +111,9 @@
     const previous = state.values[state.selectedIndex] || 0;
     state.values[state.selectedIndex] = wrapIndex(previous + direction, field.options.length);
     state.revision += 1;
+
+    // 表示値自体は即時更新し、どの項目をどちら向きに変更したかだけを描画用に残す。
+    // CTRPF側でも同じ3値を保持すれば、Web側と同じ値スライド演出を再現できる。
     state.lastChangedIndex = state.selectedIndex;
     state.lastChangeDirection = Math.sign(direction) || 1;
     state.lastChangedAt = now;
