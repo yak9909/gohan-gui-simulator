@@ -11,12 +11,12 @@
   }
 
   const STYLE_FIELDS = Object.freeze([
-    Object.freeze({ key: "hairStyle", label: "HAIR STYLE", options: Object.freeze(["01", "02", "03", "04", "05", "06", "07", "08"]) }),
-    Object.freeze({ key: "hairColor", label: "HAIR COLOR", options: Object.freeze(["GREEN", "BROWN", "BLACK", "BLONDE", "RED", "BLUE", "PINK", "WHITE"]) }),
-    Object.freeze({ key: "eyeShape", label: "EYE SHAPE", options: Object.freeze(["01", "02", "03", "04", "05", "06", "07", "08"]) }),
-    Object.freeze({ key: "eyeColor", label: "EYE COLOR", options: Object.freeze(["BLUE", "GREEN", "BROWN", "BLACK", "GRAY", "VIOLET"]) }),
-    Object.freeze({ key: "gender", label: "GENDER", options: Object.freeze(["MALE", "FEMALE"]) }),
-    Object.freeze({ key: "headwear", label: "HEADWEAR", options: Object.freeze(["SHOW", "HIDE"]) })
+    Object.freeze({ key: "hairStyle", label: "髪型", options: Object.freeze(["1番", "2番", "3番", "4番", "5番", "6番", "7番", "8番"]) }),
+    Object.freeze({ key: "hairColor", label: "髪色", options: Object.freeze(["緑", "茶", "黒", "金", "赤", "青", "桃", "白"]) }),
+    Object.freeze({ key: "eyeShape", label: "目の形", options: Object.freeze(["1番", "2番", "3番", "4番", "5番", "6番", "7番", "8番"]) }),
+    Object.freeze({ key: "eyeColor", label: "目の色", options: Object.freeze(["青", "緑", "茶", "黒", "灰", "紫"]) }),
+    Object.freeze({ key: "gender", label: "性別", options: Object.freeze(["男", "女"]) }),
+    Object.freeze({ key: "headwear", label: "頭衣装", options: Object.freeze(["表示", "非表示"]) })
   ]);
 
   const DEFAULT_VALUES = Object.freeze([3, 0, 0, 0, 0, 1]);
@@ -30,7 +30,7 @@
       id: "style-change-preview",
       type: "checkbox",
       label: "STYLE CHANGE PREVIEW",
-      description: "Preview the ACNL style-change screen and operate its settings.",
+      description: "髪型・髪色・目・性別・頭衣装を上画面でプレビューします。",
       value: false,
       appliedValue: false,
       hotkey: "なし",
@@ -63,8 +63,13 @@
     if (!menu.stylePreviewState) {
       menu.stylePreviewState = {
         selectedIndex: 0,
+        selectionFromIndex: 0,
+        selectionDirection: 0,
+        selectionStartedAt: 0,
         values: [...DEFAULT_VALUES],
         revision: 0,
+        lastChangedIndex: -1,
+        lastChangeDirection: 0,
         lastChangedAt: 0
       };
     }
@@ -76,9 +81,14 @@
     return ((Math.round(index) % count) + count) % count;
   }
 
-  function moveStyleSelection(menu, direction) {
+  function moveStyleSelection(menu, direction, now = 0) {
     const state = ensureStyleState(menu);
-    state.selectedIndex = wrapIndex(state.selectedIndex + direction, STYLE_FIELDS.length);
+    const previous = state.selectedIndex;
+    const next = wrapIndex(previous + direction, STYLE_FIELDS.length);
+    state.selectionFromIndex = previous;
+    state.selectionDirection = Math.sign(direction) || 0;
+    state.selectionStartedAt = now;
+    state.selectedIndex = next;
     return state.selectedIndex;
   }
 
@@ -89,6 +99,8 @@
     const previous = state.values[state.selectedIndex] || 0;
     state.values[state.selectedIndex] = wrapIndex(previous + direction, field.options.length);
     state.revision += 1;
+    state.lastChangedIndex = state.selectedIndex;
+    state.lastChangeDirection = Math.sign(direction) || 1;
     state.lastChangedAt = now;
     return true;
   }
@@ -129,8 +141,8 @@
         this.releaseInactiveHotkeys?.();
         return true;
       }
-      if (key === "up") moveStyleSelection(this, -1);
-      else if (key === "down") moveStyleSelection(this, 1);
+      if (key === "up") moveStyleSelection(this, -1, now);
+      else if (key === "down") moveStyleSelection(this, 1, now);
       else if (key === "left") changeStyleValue(this, -1, now);
       else if (key === "right") changeStyleValue(this, 1, now);
       else if (key === "a" && !repeated) changeStyleValue(this, 1, now);
