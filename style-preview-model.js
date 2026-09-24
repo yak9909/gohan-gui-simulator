@@ -4,7 +4,7 @@
   const core = typeof module !== "undefined" && module.exports ? require("./ui-model.js") : root.CTRPFUiModel;
   if (!core?.CheatMenuModel) return;
 
-  const { MENU, LISTBOX, clamp, easeOutCubic, mix, listboxAmount, listboxScrollPosition } = core;
+  const { easeOutCubic, mix } = core;
   const prototype = core.CheatMenuModel.prototype;
   if (prototype.__stylePreviewPatchApplied) {
     if (typeof module !== "undefined" && module.exports) module.exports = root?.ACNLStylePreviewModel || {};
@@ -19,13 +19,23 @@
     Object.freeze({ key: "gender", label: "せいべつ", options: Object.freeze(["おとこ", "おんな"]) }),
     Object.freeze({ key: "headwear", label: "あたまそうび", options: Object.freeze(["みせる", "かくす"]) })
   ]);
+
   const DEFAULT_VALUES = Object.freeze([3, 0, 0, 0, 0, 1]);
+  const STYLE_UI = Object.freeze({
+    panelDuration: 180,
+    selectionDuration: 90,
+    valueBounceDuration: 100,
+    activationDuration: 90
+  });
   const CAPTURED_KEYS = new Set(["up", "down", "left", "right", "a", "b", "x", "y", "l", "r", "zl", "zr", "select", "start"]);
 
-  const originalCurrentFrame = prototype.currentFrame;
-  const originalOpen = prototype.open;
-  const originalHandle = prototype.handle;
-  const originalGameInputCaptureState = prototype.gameInputCaptureState;
+  const original = {
+    currentFrame: prototype.currentFrame,
+    open: prototype.open,
+    update: prototype.update,
+    handle: prototype.handle,
+    gameInputCaptureState: prototype.gameInputCaptureState
+  };
 
   function previewEntry() {
     return {
@@ -60,25 +70,29 @@
     return previewItem(menu)?.appliedValue === true;
   }
 
+  function createStyleState() {
+    return {
+      selectedIndex: 0,
+      selectionFrom: 0,
+      selectionTo: 0,
+      selectionStartedAt: 0,
+      selectionBoundaryBounceDirection: 0,
+      selectionBoundaryBounceStartedAt: Number.NEGATIVE_INFINITY,
+      selectionBoundaryBlockedDirection: 0,
+      values: [...DEFAULT_VALUES],
+      revision: 0,
+      valueBounceIndex: -1,
+      valueBounceDirection: 0,
+      valueBounceStartedAt: Number.NEGATIVE_INFINITY,
+      activationBounceStartedAt: Number.NEGATIVE_INFINITY,
+      panelFrom: 0,
+      panelTarget: 0,
+      panelStartedAt: 0
+    };
+  }
+
   function ensureStyleState(menu) {
-    if (!menu.stylePreviewState) {
-      menu.stylePreviewState = {
-        selectedIndex: 0,
-        selectionFrom: 0,
-        selectionTo: 0,
-        selectionStartedAt: 0,
-        selectionBoundaryBounceDirection: 0,
-        selectionBoundaryBounceStartedAt: Number.NEGATIVE_INFINITY,
-        selectionBoundaryBlockedDirection: 0,
-        activationBounceStartedAt: Number.NEGATIVE_INFINITY,
-        values: [...DEFAULT_VALUES],
-        revision: 0,
-        inlineList: null,
-        panelFrom: 0,
-        panelTarget: 0,
-        panelStartedAt: 0
-      };
-    }
+    if (!menu.stylePreviewState) menu.stylePreviewState = createStyleState();
     return menu.stylePreviewState;
   }
 
@@ -87,9 +101,38 @@
     return ((Math.round(index) % count) + count) % count;
   }
 
+  function isStyleUiOperable(menu) {
+    return Boolean(menu && isPreviewEnabled(menu) && !menu.visible && !menu.dialog && !menu.overlay && !menu.inlineList);
+  }
+
+  function panelAmount(menu, now = 0) {
+    const state = ensureStyleState(menu);
+    if (state.panelFrom === state.panelTarget) return state.panelTarget;
+    const duration = STYLE_UI.panelDuration;
+    const progress = duration <= 0 ? 1 : easeOutCubic((now - state.panelStartedAt) / duration);
+    return mix(state.panelFrom, state.panelTarget, progress);
+  }
+
+  function setPanelVisible(menu, visible, now = 0) {
+    const state = ensureStyleState(menu);
+    const target = visible ? 1 : 0;
+    if (state.panelTarget === target) return false;
+    state.panelFrom = panelAmount(menu, now);
+    state.panelTarget = target;
+    state.panelStartedAt = now;
+    return true;
+  }
+
+  function updateStyleLifecycle(menu, now = 0) {
+    ensurePreviewEntry(menu);
+    ensureStyleState(menu);
+    setPanelVisible(menu, isStyleUiOperable(menu), now);
+  }
+
   function selectionPosition(menu, now = 0) {
     const state = ensureStyleState(menu);
-    const progress = easeOutCubic((now - state.selectionStartedAt) / MENU.selectionMoveDuration);
+    if (state.selectionFrom === state.selectionTo) return state.selectionTo;
+    const progress = easeOutCubic((now - state.selectionStartedAt) / STYLE_UI.selectionDuration);
     return mix(state.selectionFrom, state.selectionTo, progress);
   }
 
@@ -108,8 +151,8 @@
     next = wrapIndex(next, STYLE_FIELDS.length);
     if (next === previous) return false;
 
-    // CTRPF移植時も入力値は即時更新し、描画位置だけを「現在の補間位置→次の行」で100ms補間する。
-    // 連打中に前アニメーションが完了していなくても不連続に飛ばないための状態分離。
+    // gohanのメニューと同様に、入力結果は即時確定し、描画位置だけを時刻補間する。
+    // CTRPFへ移植する場合も「論理選択」と「見た目の補間位置」を別状態として保持する。
     state.selectionFrom = selectionPosition(menu, now);
     state.selectionTo = next;
     state.selectionStartedAt = now;
@@ -121,100 +164,50 @@
   function selectionBoundaryBounceOffset(menu, now = 0) {
     const state = ensureStyleState(menu);
     const elapsed = now - state.selectionBoundaryBounceStartedAt;
-    if (elapsed < 0 || elapsed >= MENU.selectionMoveDuration) return 0;
-    const progress = elapsed / MENU.selectionMoveDuration;
+    if (elapsed < 0 || elapsed >= STYLE_UI.selectionDuration) return 0;
+    const progress = elapsed / STYLE_UI.selectionDuration;
     const amount = progress < 0.28
       ? easeOutCubic(progress / 0.28)
       : 1 - easeOutCubic((progress - 0.28) / 0.72);
-    return amount === 0 ? 0 : state.selectionBoundaryBounceDirection * 4 * amount;
+    return amount === 0 ? 0 : state.selectionBoundaryBounceDirection * 3 * amount;
+  }
+
+  function changeStyleValue(menu, direction, now = 0) {
+    const state = ensureStyleState(menu);
+    const field = STYLE_FIELDS[state.selectedIndex];
+    if (!field) return false;
+    const previous = wrapIndex(state.values[state.selectedIndex], field.options.length);
+    const next = wrapIndex(previous + direction, field.options.length);
+    if (next === previous) return false;
+    state.values[state.selectedIndex] = next;
+    state.revision += 1;
+    state.valueBounceIndex = state.selectedIndex;
+    state.valueBounceDirection = Math.sign(direction) || 1;
+    state.valueBounceStartedAt = now;
+    return true;
+  }
+
+  function valueBounceOffset(menu, index, now = 0) {
+    const state = ensureStyleState(menu);
+    if (state.valueBounceIndex !== index) return 0;
+    const elapsed = now - state.valueBounceStartedAt;
+    if (elapsed < 0 || elapsed >= STYLE_UI.valueBounceDuration) return 0;
+    const progress = elapsed / STYLE_UI.valueBounceDuration;
+    const amount = progress < 0.28
+      ? easeOutCubic(progress / 0.28)
+      : 1 - easeOutCubic((progress - 0.28) / 0.72);
+    return state.valueBounceDirection * 4 * amount;
   }
 
   function activationBounceOffset(menu, now = 0) {
     const state = ensureStyleState(menu);
     const elapsed = now - state.activationBounceStartedAt;
-    if (elapsed < 0 || elapsed >= MENU.activationBounceDuration) return 0;
-    const progress = elapsed / MENU.activationBounceDuration;
+    if (elapsed < 0 || elapsed >= STYLE_UI.activationDuration) return 0;
+    const progress = elapsed / STYLE_UI.activationDuration;
     const amount = progress < 0.3
       ? easeOutCubic(progress / 0.3)
       : 1 - easeOutCubic((progress - 0.3) / 0.7);
     return 3 * amount;
-  }
-
-  function styleListScrollTarget(index, itemCount, visibleRows) {
-    return clamp(index - Math.floor(visibleRows / 2), 0, Math.max(0, itemCount - visibleRows));
-  }
-
-  function openStyleList(menu, now = 0) {
-    const state = ensureStyleState(menu);
-    const field = STYLE_FIELDS[state.selectedIndex];
-    if (!field || state.inlineList) return false;
-    const selected = wrapIndex(state.values[state.selectedIndex], field.options.length);
-    const visibleRows = Math.min(LISTBOX.inlineVisibleRows, field.options.length);
-    const initialScroll = styleListScrollTarget(selected, field.options.length, visibleRows);
-    state.activationBounceStartedAt = now;
-
-    // 通常メニューのinline listと同じ状態構造を使う。
-    // CTRPF移植時はanimationFrom/Target/StartedAtを時刻差で補間し、Web固有APIは不要。
-    state.inlineList = {
-      fieldIndex: state.selectedIndex,
-      index: selected,
-      visibleRows,
-      animationFrom: 0,
-      animationTarget: 1,
-      animationStartedAt: now,
-      animationDuration: LISTBOX.animationDuration,
-      closing: false,
-      scrollFrom: initialScroll,
-      scrollTarget: initialScroll,
-      scrollStartedAt: now
-    };
-    return true;
-  }
-
-  function closeStyleList(menu, now = 0) {
-    const state = ensureStyleState(menu);
-    const list = state.inlineList;
-    if (!list || list.closing) return false;
-    const current = listboxAmount(list, now);
-    list.animationFrom = current;
-    list.animationTarget = 0;
-    list.animationStartedAt = now;
-    list.animationDuration = LISTBOX.animationDuration * current;
-    list.closing = true;
-    return true;
-  }
-
-  function updateStyleState(menu, now = 0) {
-    const state = ensureStyleState(menu);
-    const list = state.inlineList;
-    if (list?.closing && now - list.animationStartedAt >= list.animationDuration) state.inlineList = null;
-    return state;
-  }
-
-  function moveStyleListSelection(menu, direction, now = 0, allowWrap = true) {
-    const state = ensureStyleState(menu);
-    const list = state.inlineList;
-    if (!list || list.closing) return false;
-    const field = STYLE_FIELDS[list.fieldIndex];
-    if (!field) return false;
-    const next = list.index + direction;
-    if (!allowWrap && (next < 0 || next >= field.options.length)) return false;
-    list.scrollFrom = listboxScrollPosition(list, now);
-    list.index = wrapIndex(next, field.options.length);
-    list.scrollTarget = styleListScrollTarget(list.index, field.options.length, list.visibleRows);
-    list.scrollStartedAt = now;
-    return true;
-  }
-
-  function confirmStyleList(menu, now = 0) {
-    const state = ensureStyleState(menu);
-    const list = state.inlineList;
-    if (!list || list.closing) return false;
-    const previous = state.values[list.fieldIndex];
-    state.values[list.fieldIndex] = list.index;
-    if (previous !== list.index) state.revision += 1;
-    closeStyleList(menu, now);
-    return true;
   }
 
   function currentStyleValue(menu, index) {
@@ -224,53 +217,38 @@
     return field.options[wrapIndex(state.values[index], field.options.length)];
   }
 
-  function panelAmount(menu, now = 0) {
-    const state = ensureStyleState(menu);
-    const progress = easeOutCubic((now - state.panelStartedAt) / MENU.enterDuration);
-    return mix(state.panelFrom, state.panelTarget, progress);
-  }
-
-  function setPanelVisible(menu, visible, now = 0) {
-    const state = ensureStyleState(menu);
-    const target = visible ? 1 : 0;
-    if (state.panelTarget === target) return false;
-    state.panelFrom = panelAmount(menu, now);
-    state.panelTarget = target;
-    state.panelStartedAt = now;
-    return true;
-  }
-
-  function isStyleUiOperable(menu) {
-    return Boolean(menu && isPreviewEnabled(menu) && !menu.visible && !menu.dialog && !menu.overlay && !menu.inlineList);
-  }
-
   Object.defineProperty(prototype, "__stylePreviewPatchApplied", { value: true });
 
   prototype.currentFrame = function () {
     ensurePreviewEntry(this);
     ensureStyleState(this);
-    return originalCurrentFrame.call(this);
+    return original.currentFrame.call(this);
   };
 
   prototype.open = function (now) {
     ensurePreviewEntry(this);
-    const state = ensureStyleState(this);
-    state.inlineList = null;
-    state.selectionBoundaryBlockedDirection = 0;
-    return originalOpen.call(this, now);
+    ensureStyleState(this);
+    return original.open.call(this, now);
+  };
+
+  prototype.update = function (now) {
+    // 状態更新は描画関数ではなくmenu.update()に集約する。
+    // これによりWebシミュレーターとCTRPF実装で同じ「tick→draw」の責務分離を維持できる。
+    const result = original.update.call(this, now);
+    updateStyleLifecycle(this, now);
+    return result;
   };
 
   prototype.handle = function (key, now, pressed = true, repeated = false) {
     ensurePreviewEntry(this);
     const state = ensureStyleState(this);
-    updateStyleState(this, now);
 
     if (!isStyleUiOperable(this) || !CAPTURED_KEYS.has(key)) {
-      return originalHandle.call(this, key, now, pressed, repeated);
+      return original.handle.call(this, key, now, pressed, repeated);
     }
 
-    // スタイルUI表示中は通常メニューと同様にゲームボタンをUIが占有する。
-    // CTRPF側でもこの分岐に入ったボタンはゲーム本体へ渡さない。
+    // 独自UIでも入力経路は既存menu.handle()へ一本化する。
+    // UI表示中のデジタル入力はここで消費し、ゲーム本体へは渡さない契約。
     if (pressed && !repeated) this.heldControls.add(key);
     else if (!pressed) this.heldControls.delete(key);
     this.releaseInactiveHotkeys?.();
@@ -280,23 +258,19 @@
       return true;
     }
 
-    if (state.inlineList) {
-      if (state.inlineList.closing) return true;
-      if (key === "up") moveStyleListSelection(this, -1, now, !repeated);
-      else if (key === "down") moveStyleListSelection(this, 1, now, !repeated);
-      else if (key === "a" && !repeated) confirmStyleList(this, now);
-      else if (key === "b" && !repeated) closeStyleList(this, now);
-      return true;
-    }
-
     if (key === "up") moveStyleSelection(this, -1, now, !repeated);
     else if (key === "down") moveStyleSelection(this, 1, now, !repeated);
-    else if (key === "a" && !repeated) openStyleList(this, now);
+    else if (key === "left") changeStyleValue(this, -1, now);
+    else if (key === "right") changeStyleValue(this, 1, now);
+    else if (key === "a" && !repeated) {
+      state.activationBounceStartedAt = now;
+      changeStyleValue(this, 1, now);
+    }
     return true;
   };
 
   prototype.gameInputCaptureState = function () {
-    const base = originalGameInputCaptureState.call(this);
+    const base = original.gameInputCaptureState.call(this);
     if (!isStyleUiOperable(this)) return base;
     return { ...base, active: true, blockGameButtons: true };
   };
@@ -308,24 +282,24 @@
   const api = Object.freeze({
     STYLE_FIELDS,
     DEFAULT_VALUES,
+    STYLE_UI,
     ensurePreviewEntry,
     previewEntry,
     previewItem,
     isPreviewEnabled,
+    createStyleState,
     ensureStyleState,
+    isStyleUiOperable,
+    panelAmount,
+    setPanelVisible,
+    updateStyleLifecycle,
     selectionPosition,
     moveStyleSelection,
     selectionBoundaryBounceOffset,
+    changeStyleValue,
+    valueBounceOffset,
     activationBounceOffset,
-    openStyleList,
-    closeStyleList,
-    updateStyleState,
-    moveStyleListSelection,
-    confirmStyleList,
-    currentStyleValue,
-    panelAmount,
-    setPanelVisible,
-    isStyleUiOperable
+    currentStyleValue
   });
 
   if (root) root.ACNLStylePreviewModel = api;
