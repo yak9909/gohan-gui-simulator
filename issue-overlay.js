@@ -5,6 +5,7 @@
 
   const MENU = root.CTRPFUiModel?.MENU;
   const HOLD_CANCEL_THRESHOLD = root.GohanIssueFixes?.HOLD_CANCEL_THRESHOLD ?? (2 / 5);
+  const VALUE_LOCK_COLOR = "#d6c98a";
   if (!MENU) return;
 
   function drawBitmapText(context, font, text, x, y, color) {
@@ -63,6 +64,24 @@
     }, true);
   }
 
+  function drawValueLockMarkers(context, font, menu, menuX, now) {
+    if (typeof menu.isItemFixed !== "function") return;
+    const frame = menu.currentFrame();
+    if (!frame?.items?.length) return;
+    const start = menu.viewportStart(now);
+    const firstIndex = Math.max(0, Math.floor(start));
+    const lastIndex = Math.min(frame.items.length - 1, Math.ceil(start) + MENU.visibleRows);
+    for (let index = firstIndex; index <= lastIndex; index++) {
+      const entry = frame.items[index];
+      if (!menu.isItemFixed(entry)) continue;
+      const y = Math.round(28 + (index - start) * MENU.itemHeight);
+      // VALUE LOCK中は連動型のSアイコンを薄黄色へ変え、行左端にも細い固定マーカーを出す。
+      context.fillStyle = VALUE_LOCK_COLOR;
+      context.fillRect(menuX + 4, y - 2, 2, 12);
+      drawBitmapText(context, font, "S", menuX + 8, y, VALUE_LOCK_COLOR);
+    }
+  }
+
   function overlayFrame(now) {
     requestAnimationFrame(overlayFrame);
     const menu = root.__gohanMenuModel;
@@ -90,6 +109,8 @@
       }
     }
 
+    drawValueLockMarkers(context, font, menu, menuX, now);
+
     // Replace the legacy START:FAVORITES hint with the settings contract.
     const frame = menu.currentFrame();
     const settingsIndex = typeof menu.settingsFrameIndex === "function" ? menu.settingsFrameIndex() : -1;
@@ -97,13 +118,13 @@
     let controlText;
     if (frame?.kind === "settings") controlText = "START:CLOSE  A:SELECT";
     else if (settingsIndex >= 0) controlText = "R:FAV  START:CLOSE";
-    else controlText = `${menu.isItemFixed?.(selected) ? "LOCK  " : ""}R:FAV  START:SETTINGS`;
+    else controlText = `${menu.isItemFixed?.(selected) ? "VALUE LOCK:ON  " : ""}R:FAV  START:SETTINGS`;
 
     context.save();
     context.globalAlpha = amount;
     context.fillStyle = "rgba(10, 13, 11, .98)";
     context.fillRect(174, 35, 211, 11);
-    drawBitmapText(context, font, controlText, 176, 37, menu.isItemFixed?.(selected) ? "#d6c98a" : "#8f9a92");
+    drawBitmapText(context, font, controlText, 176, 37, menu.isItemFixed?.(selected) ? VALUE_LOCK_COLOR : "#8f9a92");
     context.restore();
   }
 
