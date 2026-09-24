@@ -2,6 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const crypto = require("node:crypto");
 
 const core = require("../ui-model.js");
 const model = require("../style-preview-model.js");
@@ -18,6 +19,16 @@ test("style-change preview cheat is injected and exposes all requested settings"
   assert.deepEqual(model.STYLE_FIELDS.map((field) => field.key), [
     "hairStyle", "hairColor", "eyeShape", "eyeColor", "gender", "headwear"
   ]);
+});
+
+test("style preview becomes visible immediately when its checkbox is turned on", () => {
+  const menu = new core.CheatMenuModel(() => {});
+  const entry = model.previewItem(menu);
+  assert.equal(model.isPreviewEnabled(menu), false);
+
+  entry.value = true;
+  assert.equal(entry.appliedValue, false);
+  assert.equal(model.isPreviewEnabled(menu), true);
 });
 
 test("enabled style preview captures D-pad/A and changes the selected style value", () => {
@@ -44,12 +55,16 @@ test("enabled style preview captures D-pad/A and changes the selected style valu
   assert.equal(capture.blockGameButtons, true);
 });
 
-test("embedded top-screen image is tied to the supplied 400x240 capture", () => {
+test("embedded top-screen image is a valid WebP tied to the supplied 400x240 capture", () => {
   assert.equal(data.image.width, 400);
   assert.equal(data.image.height, 240);
   assert.equal(data.image.mime, "image/webp");
   assert.equal(data.source.imageSha256, "034144e1d016cfe53dbdc9251499a3aacc128b763e45b8b18d12a58b70d95c29");
-  assert.ok(data.image.base64.length > 1000);
+
+  const embedded = Buffer.from(data.image.base64, "base64");
+  assert.equal(embedded.subarray(0, 4).toString("ascii"), "RIFF");
+  assert.equal(embedded.subarray(8, 12).toString("ascii"), "WEBP");
+  assert.equal(crypto.createHash("sha256").update(embedded).digest("hex"), data.image.sha256);
 });
 
 test("style preview draws the supplied image as a 400x240 top-screen frame", () => {
