@@ -42,27 +42,56 @@ test("preview uses the supplied ACNL screenshot and Garden BCFNT subset", () => 
   assert.deepEqual(data.candidates, ["漢字", "感じ", "幹事", "完治"]);
   assert.equal(data.glyphs["事"].rows[5], "1333339f833333200", "BCFNT A4 decoding must use the low nibble first");
 
-  for (const character of new Set(Array.from(data.candidates.join("")))) {
-    const glyph = data.glyphs[character];
+  for (const character of new Set(Array.from(preview.PREVIEW_CANDIDATES.join("")))) {
+    const glyph = preview.DRAW_DATA.glyphs[character];
     assert.ok(glyph, `missing BCFNT glyph: ${character}`);
     assert.equal(glyph.rows.length, 24);
     assert.ok(glyph.rows.every((row) => /^[0-9a-f]{17}$/.test(row)));
     assert.ok(glyph.charWidth > 0);
   }
+  assert.equal(preview.EXTRA_GLYPHS["監"].rows[4], "01011110182020000");
 });
 
-test("candidate glyph pixels stay inside the empty strip below the input field", () => {
+test("candidate glyphs are compact and stay inside the strip below the input field", () => {
   const pixels = [];
   const context = {
     globalAlpha: 1,
     fillStyle: "",
     fillRect(x, y, width, height) { pixels.push({ x, y, width, height }); }
   };
-  preview.drawBcfntText(context, "漢字", 20, preview.CANDIDATE_BAR.textCellY, "#000", data);
+  preview.drawBcfntText(
+    context,
+    "漢字",
+    20,
+    preview.CANDIDATE_BAR.textCellY,
+    "#000",
+    preview.DRAW_DATA,
+    preview.CANDIDATE_BAR.textScale
+  );
   assert.ok(pixels.length > 0);
-  assert.ok(pixels.every((pixel) => pixel.y >= preview.CANDIDATE_BAR.y && pixel.y < 66));
-  assert.equal(preview.CANDIDATE_BAR.y, 47);
+  assert.ok(preview.CANDIDATE_BAR.textScale < 1);
+  assert.ok(pixels.every((pixel) => pixel.y >= preview.CANDIDATE_BAR.y && pixel.y < preview.CANDIDATE_BAR.y + preview.CANDIDATE_BAR.height));
+  assert.equal(preview.CANDIDATE_BAR.y, 48);
   assert.equal(preview.CANDIDATE_BAR.y + preview.CANDIDATE_BAR.height, 65);
+  assert.equal(preview.CANDIDATE_COLORS.panel, "#947d63");
+});
+
+test("candidate list supports horizontal scrolling and selection-following", () => {
+  const state = preview.createCandidateState();
+  const maximum = preview.maximumCandidateScroll(preview.DRAW_DATA);
+  assert.ok(preview.PREVIEW_CANDIDATES.length > data.candidates.length);
+  assert.ok(maximum > 0, "preview candidates should overflow the visible strip");
+
+  preview.scrollCandidates(state, 9999, preview.DRAW_DATA);
+  assert.equal(state.scrollX, maximum);
+  preview.scrollCandidates(state, -9999, preview.DRAW_DATA);
+  assert.equal(state.scrollX, 0);
+
+  preview.setCandidateIndex(state, preview.PREVIEW_CANDIDATES.length - 1, preview.DRAW_DATA);
+  assert.equal(state.selectedIndex, preview.PREVIEW_CANDIDATES.length - 1);
+  assert.ok(state.scrollX > 0, "selection should scroll the last candidate into view");
+  preview.setCandidateIndex(state, 0, preview.DRAW_DATA);
+  assert.equal(state.scrollX, 0, "selection should scroll back to the first candidate");
 });
 
 test("preview renderer rasterizes BCFNT masks without browser text rendering", () => {
@@ -72,4 +101,8 @@ test("preview renderer rasterizes BCFNT masks without browser text rendering", (
   assert.match(source, /drawImage\(sourceImage/);
   assert.doesNotMatch(source, /fillText\s*\(/);
   assert.match(source, /menu\.overlay\?\.screen === "bottom"/);
+  assert.match(source, /pointermove/);
+  assert.match(source, /wheel/);
+  assert.match(source, /ArrowLeft/);
+  assert.match(source, /ArrowRight/);
 });
