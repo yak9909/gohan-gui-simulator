@@ -49,7 +49,15 @@ test("preview uses the supplied ACNL screenshot and Garden BCFNT subset", () => 
     assert.ok(glyph.rows.every((row) => /^[0-9a-f]{17}$/.test(row)));
     assert.ok(glyph.charWidth > 0);
   }
-  assert.equal(preview.EXTRA_GLYPHS["監"].rows[4], "01011110182020000");
+
+  // Extra preview glyphs must skip the 1px separator border around each 17x24 BCFNT cell.
+  // These exact source rows catch the previous off-by-one extraction that scrambled kana.
+  assert.equal(preview.EXTRA_GLYPHS["監"].rows[4], "00111111028200000");
+  assert.equal(preview.EXTRA_GLYPHS["か"].rows[9], "7ffeffddfe25ff600");
+  assert.equal(preview.EXTRA_GLYPHS["ん"].rows[17], "6fd0001ff87ff2000");
+  assert.equal(preview.EXTRA_GLYPHS["カ"].rows[8], "4fffffffffffa0000");
+  assert.equal(preview.EXTRA_GLYPHS["ン"].rows[7], "3dff8100000020000");
+  assert.equal(preview.EXTRA_GLYPHS["ジ"].rows[10], "7fff91000003f6000");
 });
 
 test("candidate glyphs are compact and stay inside the strip below the input field", () => {
