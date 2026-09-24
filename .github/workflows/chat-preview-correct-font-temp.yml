@@ -1,0 +1,40 @@
+name: Correct ACNL chat preview font data
+
+on:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: write
+
+jobs:
+  correct:
+    runs-on: ubuntu-latest
+    if: contains(github.event.head_commit.message, 'Correct ACNL BCFNT data')
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Replace generated BCFNT tail
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(wc -c < .chat-preview-correction/tail.part.04)" -eq 8000
+          test "$(wc -c < .chat-preview-correction/tail.part.05)" -eq 1735
+          head -c 32000 chat-kanji-preview-data.js > chat-kanji-preview-data.correct
+          cat .chat-preview-correction/tail.part.04 .chat-preview-correction/tail.part.05 >> chat-kanji-preview-data.correct
+          printf '%s  %s\n' '6f49cd36aa2226a81c70f79041010a2631f4a2114352c07e0c4cb2fa12664009' chat-kanji-preview-data.correct | sha256sum -c -
+          mv chat-kanji-preview-data.correct chat-kanji-preview-data.js
+      - name: Remove correction staging and workflow
+        shell: bash
+        run: |
+          rm -rf .chat-preview-correction
+          rm .github/workflows/chat-preview-correct-font-temp.yml
+      - name: Commit correction
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "Correct ACNL chat BCFNT A4 decoding"
+          git push origin HEAD:main
