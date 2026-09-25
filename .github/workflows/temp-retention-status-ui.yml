@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   patch:
-    if: contains(github.event.head_commit.message, 'Debug retention and status UI patch')
+    if: contains(github.event.head_commit.message, 'Apply settings routing and status UI patch')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,30 +26,14 @@ jobs:
             grep -q "marker test block not found" patch-error.txt || { cat patch-error.txt; exit "$status"; }
           fi
           python scripts/finalize-retention-status-tests.py
-      - name: Debug per-item retention
-        run: |
-          node - <<'NODE'
-          const core = require('./ui-model.js');
-          require('./issue-fixes.js');
-          const menu = new core.CheatMenuModel();
-          menu.open(0);
-          menu.currentFrame().selection = 1;
-          const target = menu.selectedItem();
-          console.log('target', target.label, target.type, target.favoriteKey, target.appliedValue, menu.isItemRetainable(target));
-          menu.handle('start', 100, true, false);
-          const frame = menu.currentFrame();
-          const setting = frame.items[2];
-          console.log('setting-before', setting.label, setting.disabled, setting.value, setting.settingsTarget?.label, menu.settingsTarget?.label, menu.isItemRetained(setting.settingsTarget));
-          menu.handle('a', 110, true, false);
-          console.log('setting-after', setting.disabled, setting.value, menu.isItemRetained(setting.settingsTarget), [...(menu.retainedItemKeys || [])]);
-          NODE
+          python scripts/fix-settings-a-routing.py
       - name: Run focused tests
         run: |
           node --test test/issues.test.js
           node --test test/chat-kanji-preview.test.js
           node --test test/value-lock-visual.test.js
       - name: Remove temporary patch files
-        run: rm .github/workflows/temp-retention-status-ui.yml scripts/patch-retention-status-ui.py scripts/finalize-retention-status-tests.py patch-error.txt
+        run: rm .github/workflows/temp-retention-status-ui.yml scripts/patch-retention-status-ui.py scripts/finalize-retention-status-tests.py scripts/fix-settings-a-routing.py patch-error.txt
       - name: Commit patch
         run: |
           git config user.name github-actions[bot]
