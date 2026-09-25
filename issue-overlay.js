@@ -105,12 +105,11 @@
     return hotkeyActive ? HOTKEY_ACTIVE_COLOR : MARKER_INACTIVE_COLOR;
   }
 
-  function markerY(font, y) {
-    const markerHeight = font.glyphs[String("H".codePointAt(0))]?.height || 7;
-    // Normally the status row is the original H row (item y + 8). The eleventh row
-    // is intentionally only partially visible; clamp just that marker row to the
-    // list viewport so F/H remain visible without ever entering the footer.
-    return Math.min(y + 8, LIST_CLIP_BOTTOM - markerHeight);
+  function markerY(y) {
+    // F/H use the exact row baseline used by the item label/value. Do not move a
+    // partially visible row upward. The list viewport's existing rectangular clip
+    // cuts the glyphs naturally, exactly like the rest of the eleventh row.
+    return y;
   }
 
   function drawFavoriteHotkeyMarkers(context, font, menu, menuX, now) {
@@ -128,8 +127,10 @@
       const itemOffset = index === frame.selection ? Math.round(activationOffset) : 0;
       const favoriteActive = Boolean(entry?.favoriteKey && menu.isFavorite(entry));
       const hotkeyActive = Boolean(entry?.type !== "folder" && entry?.hotkey && entry.hotkey !== "なし");
-      const statusY = markerY(font, y);
+      const statusY = markerY(y);
 
+      // Inactive markers are not drawn. When both are active the rendering order is
+      // always F then H. Folders can only render F because they do not have hotkeys.
       if (favoriteActive) {
         eraseLegacyFavoriteMarker(context, font, menuX + itemOffset, y);
         drawBitmapText(context, font, "F", menuX + 140 + itemOffset, statusY, favoriteMarkerColor(favoriteActive));
@@ -213,6 +214,8 @@
       context.strokeRect(menuX + 5.5, 201.5, MENU.width - 13, 13);
     }
 
+    // Use the exact same viewport rectangle as app.js. The eleventh row is not
+    // covered by another layer; it is clipped here in the same way as the item text.
     context.save();
     context.beginPath();
     context.rect(menuX + 2, LIST_CLIP_TOP, MENU.width - 6, LIST_CLIP_BOTTOM - LIST_CLIP_TOP);
