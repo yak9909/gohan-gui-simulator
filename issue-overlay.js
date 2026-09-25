@@ -192,9 +192,9 @@
       }
 
       // F is always the left status column. Folders intentionally have no H column.
-      drawBitmapText(context, font, "F", menuX + FAVORITE_X + itemOffset, y, favoriteActive ? FAVORITE_ACTIVE_COLOR : MARKER_INACTIVE_COLOR);
+      drawBitmapText(context, font, "F", menuX + 140 + itemOffset, y, favoriteActive ? FAVORITE_ACTIVE_COLOR : MARKER_INACTIVE_COLOR);
       if (entry.type !== "folder") {
-        drawBitmapText(context, font, "H", menuX + HOTKEY_X + itemOffset, y, hotkeyActive ? HOTKEY_ACTIVE_COLOR : MARKER_INACTIVE_COLOR);
+        drawBitmapText(context, font, "H", menuX + 147 + itemOffset, y, hotkeyActive ? HOTKEY_ACTIVE_COLOR : MARKER_INACTIVE_COLOR);
       }
     }
 
