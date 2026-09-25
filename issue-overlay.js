@@ -8,6 +8,9 @@
   const HOLD_CANCEL_THRESHOLD = root.GohanIssueFixes?.HOLD_CANCEL_THRESHOLD ?? (2 / 5);
   const VALUE_LOCK_MARKER_COLOR = "#5cc8ff";
   const VALUE_LOCK_VALUE_COLOR = "#5cc8ff";
+  const FAVORITE_ACTIVE_COLOR = "#d6c98a";
+  const HOTKEY_ACTIVE_COLOR = "#78a9ff";
+  const MARKER_INACTIVE_COLOR = "#4c5550";
   if (!MENU) return;
 
   function measureBitmapText(font, text) {
@@ -75,6 +78,46 @@
     }, true);
   }
 
+  function eraseLegacyFavoriteMarker(context, font, menuX, y) {
+    const glyph = font.glyphs[String("F".codePointAt(0))];
+    if (!glyph || typeof context.getImageData !== "function" || typeof context.putImageData !== "function") return;
+    const sampleX = Math.round(menuX + 26);
+    for (let row = 0; row < glyph.height; row++) {
+      const bits = glyph.rows[row];
+      const pixelY = Math.round(y) + glyph.offsetY + row;
+      const sample = context.getImageData(sampleX, pixelY, 1, 1);
+      for (let column = 0; column < glyph.width; column++) {
+        if (!(bits & (1 << column))) continue;
+        context.putImageData(sample, Math.round(menuX + 22) + glyph.offsetX + column, pixelY);
+      }
+    }
+  }
+
+  function drawFavoriteHotkeyMarkers(context, font, menu, menuX, now) {
+    const frame = menu.currentFrame();
+    if (!frame?.items?.length) return;
+    const start = menu.viewportStart(now);
+    const firstIndex = Math.max(0, Math.floor(start));
+    const lastIndex = Math.min(frame.items.length - 1, Math.ceil(start) + MENU.visibleRows);
+    const activationOffset = menu.activationBounceOffset(now);
+
+    for (let index = firstIndex; index <= lastIndex; index++) {
+      const entry = frame.items[index];
+      const y = Math.round(28 + (index - start) * MENU.itemHeight);
+      const itemOffset = index === frame.selection ? Math.round(activationOffset) : 0;
+      const favoriteActive = Boolean(entry?.favoriteKey && menu.isFavorite(entry));
+      const hotkeyActive = Boolean(entry?.type !== "folder" && entry?.hotkey && entry.hotkey !== "なし");
+
+      // app.js の旧Fはラベル左に描かれるため、その3x7pxだけ同じ行の空き画素から復元する。
+      // これにより背景・選択枠・パルス色を壊さず、F/Hを右下の同一領域へ集約できる。
+      if (favoriteActive) eraseLegacyFavoriteMarker(context, font, menuX + itemOffset, y);
+
+      // 右下マーカーは常時表示する。左から F, H。無効時は灰色にして状態を自明にする。
+      drawBitmapText(context, font, "F", menuX + 140 + itemOffset, y + 8, favoriteActive ? FAVORITE_ACTIVE_COLOR : MARKER_INACTIVE_COLOR);
+      drawBitmapText(context, font, "H", menuX + 147 + itemOffset, y + 8, hotkeyActive ? HOTKEY_ACTIVE_COLOR : MARKER_INACTIVE_COLOR);
+    }
+  }
+
   function drawValueLockMarkers(context, font, numericFont, menu, menuX, now) {
     if (typeof menu.isItemFixed !== "function") return;
     const frame = menu.currentFrame();
@@ -87,7 +130,7 @@
       const entry = frame.items[index];
       if (!menu.isItemFixed(entry)) continue;
       const y = Math.round(28 + (index - start) * MENU.itemHeight);
-      // VALUE LOCKは既存の項目色を変えず、行左端の1px縦線だけで示す。
+      // 「値を固定」は既存の項目色を変えず、行左端の1px縦線だけで示す。
       context.fillStyle = VALUE_LOCK_MARKER_COLOR;
       context.fillRect(menuX + 4, y - 2, 1, 12);
 
@@ -136,16 +179,18 @@
       context.strokeRect(menuX + 5.5, 201.5, MENU.width - 13, 13);
     }
 
+    drawFavoriteHotkeyMarkers(context, font, menu, menuX, now);
     drawValueLockMarkers(context, font, numericFont, menu, menuX, now);
 
-    // Replace the legacy START:FAVORITES hint with the settings contract.
+    // app.js の旧 START:FAVORITES を上書きする。
+    // 通常のチート説明欄には START:SETTINGS を出さない。START操作はヘルプ側だけで案内する。
     const frame = menu.currentFrame();
     const settingsIndex = typeof menu.settingsFrameIndex === "function" ? menu.settingsFrameIndex() : -1;
     const selected = menu.selectedItem();
     let controlText;
     if (frame?.kind === "settings") controlText = "START:CLOSE  A:SELECT";
     else if (settingsIndex >= 0) controlText = "R:FAV  START:CLOSE";
-    else controlText = `${menu.isItemFixed?.(selected) ? "VALUE LOCK:ON  " : ""}R:FAV  START:SETTINGS`;
+    else controlText = `${menu.isItemFixed?.(selected) ? "値を固定:ON  " : ""}R:FAV`;
 
     context.save();
     context.globalAlpha = amount;
