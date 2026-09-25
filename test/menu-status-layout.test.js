@@ -14,11 +14,15 @@ test("row values keep the original right-aligned position", () => {
   assert.match(overlaySource, /menuX \+ MENU\.width - 8 - valueWidth \+ itemOffset/);
 });
 
-test("row states use left-stacked one-pixel indicators instead of F H glyphs", () => {
-  assert.match(appSource, /menu\.isItemRetained\?\.\(entry\).*statusColors\.push\("#63e4a4"\)/s);
+test("row states share the historical value-lock x position and split vertically", () => {
   assert.match(appSource, /menu\.isFavorite\(entry\).*statusColors\.push\("#d6c98a"\)/s);
   assert.match(appSource, /entry\.type !== "folder" && entry\.hotkey !== "なし".*statusColors\.push\("#78a9ff"\)/s);
-  assert.match(appSource, /fillRect\(menuX \+ 6 - statusIndex \+ itemOffset, y - 2, 1, 12\)/);
+  assert.match(appSource, /menu\.isItemRetained\?\.\(entry\).*statusColors\.push\("#63e4a4"\)/s);
+  assert.match(appSource, /const statusHeight = 12/);
+  assert.match(appSource, /segmentTop = Math\.floor\(statusHeight \* statusIndex \/ statusColors\.length\)/);
+  assert.match(appSource, /segmentBottom = Math\.floor\(statusHeight \* \(statusIndex \+ 1\) \/ statusColors\.length\)/);
+  assert.match(appSource, /fillRect\(menuX \+ 4 \+ itemOffset, y - 2 \+ segmentTop, 1, segmentBottom - segmentTop\)/);
+  assert.doesNotMatch(appSource, /menuX \+ 6 - statusIndex/);
   assert.doesNotMatch(appSource, /drawBitmapText\(top, font, "F"/);
   assert.doesNotMatch(appSource, /drawBitmapText\(top, font, "H"/);
   assert.doesNotMatch(overlaySource, /FAVORITE_ACTIVE_COLOR|eraseLegacyFavoriteMarker|drawFavoriteMarkers/);
@@ -26,7 +30,7 @@ test("row states use left-stacked one-pixel indicators instead of F H glyphs", (
 
 test("partially visible eleventh row clips status lines with the normal menu item clip", () => {
   assert.match(appSource, /top\.rect\(menuX \+ 2, 24, MENU\.width - 6, 188\); top\.clip\(\)/);
-  assert.match(appSource, /fillRect\(menuX \+ 6 - statusIndex \+ itemOffset, y - 2, 1, 12\)/);
+  assert.match(appSource, /fillRect\(menuX \+ 4 \+ itemOffset, y - 2 \+ segmentTop, 1, segmentBottom - segmentTop\)/);
   assert.doesNotMatch(appSource, /Math\.min\(y/);
 });
 

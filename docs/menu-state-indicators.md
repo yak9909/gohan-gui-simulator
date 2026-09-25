@@ -4,13 +4,15 @@ This file records the current Gohan Menu state-indicator and footer contracts so
 
 ## Row state indicators
 
-State markers are 1px vertical lines at the left edge of each menu row. Active markers are appended in this order and each additional marker stacks one pixel farther left:
+State markers use one 1px-wide, 12px-tall vertical line at `menuX + 4`, matching the historical `値を固定` side-marker position. When multiple states are active, that single line is split vertically into equal-height segments instead of adding more lines to the left.
 
-1. `この項目を保持`: menu accent `#63e4a4`
-2. お気に入り: yellow `#d6c98a`
-3. ホットキー: blue `#78a9ff`
+Segments are ordered from top to bottom as follows:
 
-Inactive states draw nothing. `値を固定` does not add a vertical line; a fixed value is indicated by its cyan value text only. The marker geometry is rendered inside the same menu-item clip as labels and values, including the partially visible eleventh row.
+1. お気に入り: yellow `#d6c98a`
+2. ホットキー: blue `#78a9ff`
+3. `この項目を保持`: menu accent `#63e4a4`
+
+For example, お気に入り + ホットキー uses yellow/blue at 1:1, and お気に入り + ホットキー + `この項目を保持` uses yellow/blue/accent at 1:1:1. Inactive states draw nothing. `値を固定` does not add a vertical line; a fixed value is indicated by its cyan value text only. The marker geometry is rendered inside the same menu-item clip as labels and values, including the partially visible eleventh row.
 
 ## Persistence settings
 
