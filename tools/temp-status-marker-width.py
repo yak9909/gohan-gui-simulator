@@ -10,6 +10,15 @@ def replace_once(path, old, new):
     p.write_text(text.replace(old, new, 1), encoding="utf-8")
 
 
+def replace_exact(path, old, new, expected_count):
+    p = Path(path)
+    text = p.read_text(encoding="utf-8")
+    count = text.count(old)
+    if count != expected_count:
+        raise SystemExit(f"{path}: expected {expected_count} matches, found {count}")
+    p.write_text(text.replace(old, new), encoding="utf-8")
+
+
 replace_once(
     "app.js",
     '''      // Row states share the historical VALUE LOCK marker position. Multiple active
@@ -30,15 +39,11 @@ replace_once(
     'test("row states share the historical value-lock x position and split vertically", () => {',
     'test("row states keep the historical value-lock right edge, extend left to 2px, and split vertically", () => {'
 )
-replace_once(
+replace_exact(
     "test/menu-status-layout.test.js",
     'assert.match(appSource, /fillRect\\(menuX \\+ 4 \\+ itemOffset, y - 2 \\+ segmentTop, 1, segmentBottom - segmentTop\\)/);',
-    'assert.match(appSource, /fillRect\\(menuX \\+ 3 \\+ itemOffset, y - 2 \\+ segmentTop, 2, segmentBottom - segmentTop\\)/);'
-)
-replace_once(
-    "test/menu-status-layout.test.js",
-    'assert.match(appSource, /fillRect\\(menuX \\+ 4 \\+ itemOffset, y - 2 \\+ segmentTop, 1, segmentBottom - segmentTop\\)/);',
-    'assert.match(appSource, /fillRect\\(menuX \\+ 3 \\+ itemOffset, y - 2 \\+ segmentTop, 2, segmentBottom - segmentTop\\)/);'
+    'assert.match(appSource, /fillRect\\(menuX \\+ 3 \\+ itemOffset, y - 2 \\+ segmentTop, 2, segmentBottom - segmentTop\\)/);',
+    2
 )
 
 replace_once(
