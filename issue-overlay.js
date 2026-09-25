@@ -4,13 +4,21 @@
   if (typeof document === "undefined") return;
 
   const MENU = root.CTRPFUiModel?.MENU;
+  const clamp = root.CTRPFUiModel?.clamp;
   const formatValue = root.CTRPFUiModel?.formatValue;
+  const isDirty = root.CTRPFUiModel?.isDirty;
   const HOLD_CANCEL_THRESHOLD = root.GohanIssueFixes?.HOLD_CANCEL_THRESHOLD ?? (2 / 5);
   const VALUE_LOCK_MARKER_COLOR = "#5cc8ff";
   const VALUE_LOCK_VALUE_COLOR = "#5cc8ff";
   const FAVORITE_ACTIVE_COLOR = "#d6c98a";
   const HOTKEY_ACTIVE_COLOR = "#78a9ff";
   const MARKER_INACTIVE_COLOR = "#4c5550";
+  const ROW_TEXT_X = 27;
+  const VALUE_RIGHT_X = 136;
+  const FAVORITE_X = 140;
+  const HOTKEY_X = 147;
+  const LIST_CLIP_TOP = 24;
+  const LIST_CLIP_BOTTOM = 212;
   if (!MENU) return;
 
   function measureBitmapText(font, text) {
@@ -20,6 +28,18 @@
       width += glyph ? glyph.advance : 4;
     }
     return width;
+  }
+
+  function trimBitmapText(font, text, maximumWidth) {
+    let result = "";
+    for (const character of Array.from(String(text))) {
+      if (measureBitmapText(font, result + character) > maximumWidth) {
+        while (result && measureBitmapText(font, result + "...") > maximumWidth) result = result.slice(0, -1);
+        return result + "...";
+      }
+      result += character;
+    }
+    return result;
   }
 
   function drawBitmapText(context, font, text, x, y, color) {
@@ -37,6 +57,16 @@
       cursor += glyph.advance;
     }
     return cursor;
+  }
+
+  function isNumericEntry(entry) {
+    return entry && ["value", "slider", "linked-value"].includes(entry.type);
+  }
+
+  function rowColor(entry, selected) {
+    if (entry.disabled) return "#525b54";
+    if (typeof isDirty === "function" && isDirty(entry)) return "#ffd166";
+    return selected ? "#ffffff" : "#aeb9b1";
   }
 
   function updateDomHelp() {
@@ -78,6 +108,25 @@
     }, true);
   }
 
+  function sampleColor(context, x, y) {
+    if (typeof context.getImageData !== "function") return null;
+    const data = context.getImageData(Math.round(x), Math.round(y), 1, 1).data;
+    return `rgba(${data[0]}, ${data[1]}, ${data[2]}, ${data[3] / 255})`;
+  }
+
+  function restoreBackgroundBand(context, sampleX, x, y, width, height) {
+    if (typeof context.getImageData !== "function") return false;
+    for (let row = 0; row < height; row++) {
+      const pixelY = Math.round(y) + row;
+      if (pixelY < LIST_CLIP_TOP || pixelY >= LIST_CLIP_BOTTOM) continue;
+      const color = sampleColor(context, sampleX, pixelY);
+      if (!color) continue;
+      context.fillStyle = color;
+      context.fillRect(Math.round(x), pixelY, Math.round(width), 1);
+    }
+    return true;
+  }
+
   function eraseLegacyFavoriteMarker(context, font, menuX, y) {
     const glyph = font.glyphs[String("F".codePointAt(0))];
     if (!glyph || typeof context.getImageData !== "function" || typeof context.putImageData !== "function") return;
@@ -85,6 +134,7 @@
     for (let row = 0; row < glyph.height; row++) {
       const bits = glyph.rows[row];
       const pixelY = Math.round(y) + glyph.offsetY + row;
+      if (pixelY < LIST_CLIP_TOP || pixelY >= LIST_CLIP_BOTTOM) continue;
       const sample = context.getImageData(sampleX, pixelY, 1, 1);
       for (let column = 0; column < glyph.width; column++) {
         if (!(bits & (1 << column))) continue;
@@ -93,9 +143,19 @@
     }
   }
 
-  function drawFavoriteHotkeyMarkers(context, font, menu, menuX, now) {
+  function drawScrollBar(context, menuX, frame, start) {
+    if (frame.items.length <= MENU.visibleRows) return;
+    const x = menuX + 154, y = 28, height = 176;
+    const thumbHeight = Math.max(10, Math.floor(height * MENU.visibleRows / frame.items.length));
+    const maximumScroll = frame.items.length - MENU.visibleRows;
+    const thumbY = y + Math.round((height - thumbHeight) * clamp(start / maximumScroll, 0, 1));
+    context.fillStyle = "rgba(38, 52, 44, .66)"; context.fillRect(x, y, 2, height);
+    context.fillStyle = "rgba(99, 228, 164, .88)"; context.fillRect(x, thumbY, 2, thumbHeight);
+  }
+
+  function drawFavoriteHotkeyMarkers(context, font, numericFont, menu, menuX, now) {
     const frame = menu.currentFrame();
-    if (!frame?.items?.length) return;
+    if (!frame?.items?.length || frame.kind === "settings") return;
     const start = menu.viewportStart(now);
     const firstIndex = Math.max(0, Math.floor(start));
     const lastIndex = Math.min(frame.items.length - 1, Math.ceil(start) + MENU.visibleRows);
@@ -104,51 +164,61 @@
     for (let index = firstIndex; index <= lastIndex; index++) {
       const entry = frame.items[index];
       const y = Math.round(28 + (index - start) * MENU.itemHeight);
-      const itemOffset = index === frame.selection ? Math.round(activationOffset) : 0;
+      if (y < 25 || y > 204) continue;
+      const selected = index === frame.selection;
+      const itemOffset = selected ? Math.round(activationOffset) : 0;
+      const color = rowColor(entry, selected);
       const favoriteActive = Boolean(entry?.favoriteKey && menu.isFavorite(entry));
       const hotkeyActive = Boolean(entry?.type !== "folder" && entry?.hotkey && entry.hotkey !== "なし");
+      const sampleX = menuX + 26;
 
-      // app.js の旧Fはラベル左に描かれるため、その3x7pxだけ同じ行の空き画素から復元する。
-      // これにより背景・選択枠・パルス色を壊さず、F/Hを右下の同一領域へ集約できる。
       if (favoriteActive) eraseLegacyFavoriteMarker(context, font, menuX + itemOffset, y);
 
-      // 右下マーカーは常時表示する。左から F, H。無効時は灰色にして状態を自明にする。
-      drawBitmapText(context, font, "F", menuX + 140 + itemOffset, y + 8, favoriteActive ? FAVORITE_ACTIVE_COLOR : MARKER_INACTIVE_COLOR);
-      drawBitmapText(context, font, "H", menuX + 147 + itemOffset, y + 8, hotkeyActive ? HOTKEY_ACTIVE_COLOR : MARKER_INACTIVE_COLOR);
+      // app.js originally uses the far right for the value and draws H one line below.
+      // Rebuild only the text band here: value moves left, then F/H occupy fixed columns.
+      // The band is limited to the list viewport so it can never paint over the footer.
+      restoreBackgroundBand(context, sampleX, menuX + ROW_TEXT_X, y, 129, 8);
+      restoreBackgroundBand(context, sampleX, menuX + 138, y + 8, 18, 7);
+
+      const value = typeof formatValue === "function" ? formatValue(entry, now) : "";
+      const valueFont = entry.type === "linked-value" && numericFont ? numericFont : isNumericEntry(entry) && numericFont ? numericFont : font;
+      const valueWidth = value ? measureBitmapText(valueFont, value) : 0;
+      const valueX = menuX + VALUE_RIGHT_X - valueWidth + itemOffset;
+      const labelWidth = Math.max(0, VALUE_RIGHT_X - ROW_TEXT_X - (value ? valueWidth + 3 : 0));
+      drawBitmapText(context, font, trimBitmapText(font, entry.label, labelWidth), menuX + ROW_TEXT_X + itemOffset, y, color);
+      if (value) {
+        const valueColor = menu.isItemFixed?.(entry) ? VALUE_LOCK_VALUE_COLOR : color;
+        drawBitmapText(context, valueFont, value, valueX, y, valueColor);
+      }
+
+      // F is always the left status column. Folders intentionally have no H column.
+      drawBitmapText(context, font, "F", menuX + FAVORITE_X + itemOffset, y, favoriteActive ? FAVORITE_ACTIVE_COLOR : MARKER_INACTIVE_COLOR);
+      if (entry.type !== "folder") {
+        drawBitmapText(context, font, "H", menuX + HOTKEY_X + itemOffset, y, hotkeyActive ? HOTKEY_ACTIVE_COLOR : MARKER_INACTIVE_COLOR);
+      }
     }
+
+    // Rebuilding the row text band can touch x=154/155 during the 3px A-bounce.
+    // Redraw the scrollbar after the rows so its two-pixel track remains authoritative.
+    drawScrollBar(context, menuX, frame, start);
   }
 
-  function drawValueLockMarkers(context, font, numericFont, menu, menuX, now) {
+  function drawValueLockMarkers(context, menu, menuX, now) {
     if (typeof menu.isItemFixed !== "function") return;
     const frame = menu.currentFrame();
     if (!frame?.items?.length) return;
     const start = menu.viewportStart(now);
     const firstIndex = Math.max(0, Math.floor(start));
     const lastIndex = Math.min(frame.items.length - 1, Math.ceil(start) + MENU.visibleRows);
-    const activationOffset = menu.activationBounceOffset(now);
     for (let index = firstIndex; index <= lastIndex; index++) {
       const entry = frame.items[index];
       if (!menu.isItemFixed(entry)) continue;
       const y = Math.round(28 + (index - start) * MENU.itemHeight);
+      if (y < 25 || y > 204) continue;
       // 「値を固定」は既存の項目色を変えず、行左端の1px縦線だけで示す。
+      // 固定中の値色は drawFavoriteHotkeyMarkers 側で VALUE_LOCK_VALUE_COLOR にする。
       context.fillStyle = VALUE_LOCK_MARKER_COLOR;
       context.fillRect(menuX + 4, y - 2, 1, 12);
-
-      // 固定中の「値」だけはSYNC色の水色で上書きし、項目名やSアイコンの色は変えない。
-      const value = typeof formatValue === "function" ? formatValue(entry, now) : "";
-      if (value) {
-        const valueFont = entry.type === "linked-value" && numericFont ? numericFont : font;
-        const valueWidth = measureBitmapText(valueFont, value);
-        const itemOffset = index === frame.selection ? Math.round(activationOffset) : 0;
-        drawBitmapText(
-          context,
-          valueFont,
-          value,
-          menuX + MENU.width - 8 - valueWidth + itemOffset,
-          y,
-          VALUE_LOCK_VALUE_COLOR
-        );
-      }
     }
   }
 
@@ -179,8 +249,13 @@
       context.strokeRect(menuX + 5.5, 201.5, MENU.width - 13, 13);
     }
 
-    drawFavoriteHotkeyMarkers(context, font, menu, menuX, now);
-    drawValueLockMarkers(context, font, numericFont, menu, menuX, now);
+    context.save();
+    context.beginPath();
+    context.rect(menuX + 2, LIST_CLIP_TOP, MENU.width - 6, LIST_CLIP_BOTTOM - LIST_CLIP_TOP);
+    context.clip();
+    drawFavoriteHotkeyMarkers(context, font, numericFont, menu, menuX, now);
+    drawValueLockMarkers(context, menu, menuX, now);
+    context.restore();
 
     // app.js の旧 START:FAVORITES を上書きする。
     // 通常のチート説明欄には START:SETTINGS を出さない。START操作はヘルプ側だけで案内する。
