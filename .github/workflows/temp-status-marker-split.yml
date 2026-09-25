@@ -16,11 +16,13 @@ jobs:
         with:
           fetch-depth: 0
       - name: Apply marker layout patch
-        run: python tools/temp-status-marker-split.py
+        run: |
+          python tools/temp-status-marker-split.py
+          python tools/temp-status-marker-issues.py
       - name: Run tests
         run: npm test
       - name: Remove temporary files
-        run: rm .github/workflows/temp-status-marker-split.yml tools/temp-status-marker-split.py
+        run: rm .github/workflows/temp-status-marker-split.yml tools/temp-status-marker-split.py tools/temp-status-marker-issues.py
       - name: Commit patch
         run: |
           git config user.name github-actions[bot]
