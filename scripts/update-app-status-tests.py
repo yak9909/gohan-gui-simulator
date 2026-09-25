@@ -17,3 +17,11 @@ new = '''  assert.match(appSource, /menu\\.isFavorite\\(entry\\)\\) statusColors
 if old not in text:
     raise SystemExit('legacy favorites visual assertions not found')
 path.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+html_path = Path('index.html')
+html = html_path.read_text(encoding='utf-8')
+old_help = '<b>Y</b> ホットキー　<b>R</b> お気に入り切替　<b>START</b> 設定'
+new_help = '<b>Y</b> ホットキー　<b>R</b> 星　<b>START</b> 設定'
+if old_help not in html:
+    raise SystemExit('static controller help not found')
+html_path.write_text(html.replace(old_help, new_help, 1), encoding='utf-8')
