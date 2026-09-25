@@ -14,24 +14,24 @@ test("row values keep the original right-aligned position", () => {
   assert.match(overlaySource, /menuX \+ MENU\.width - 8 - valueWidth \+ itemOffset/);
 });
 
-test("F H status group is right-aligned on the historical lower H baseline", () => {
-  assert.match(overlaySource, /const hotkeyActive = Boolean\(entry\?\.type !== "folder" && entry\?\.hotkey && entry\.hotkey !== "なし"\)/);
-  assert.match(overlaySource, /if \(hotkeyActive\) \{\s*drawBitmapText\(context, font, "F", menuX \+ 140 \+ itemOffset, y \+ 8, FAVORITE_ACTIVE_COLOR\)/s);
-  assert.match(overlaySource, /else \{\s*drawBitmapText\(context, font, "F", menuX \+ 147 \+ itemOffset, y \+ 8, FAVORITE_ACTIVE_COLOR\)/s);
-  assert.match(appSource, /entry\.type !== "folder" && entry\.hotkey !== "なし"[\s\S]*drawBitmapText\(top, font, "H", menuX \+ 147 \+ itemOffset, y \+ 8, "#78a9ff"\)/);
-  assert.doesNotMatch(overlaySource, /drawBitmapText\(context, font, "H"/);
-  assert.match(overlaySource, /if \(!favoriteActive\) continue/);
+test("row states use left-stacked one-pixel indicators instead of F H glyphs", () => {
+  assert.match(appSource, /menu\.isItemRetained\?\.\(entry\).*statusColors\.push\("#63e4a4"\)/s);
+  assert.match(appSource, /menu\.isFavorite\(entry\).*statusColors\.push\("#d6c98a"\)/s);
+  assert.match(appSource, /entry\.type !== "folder" && entry\.hotkey !== "なし".*statusColors\.push\("#78a9ff"\)/s);
+  assert.match(appSource, /fillRect\(menuX \+ 6 - statusIndex \+ itemOffset, y - 2, 1, 12\)/);
+  assert.doesNotMatch(appSource, /drawBitmapText\(top, font, "F"/);
+  assert.doesNotMatch(appSource, /drawBitmapText\(top, font, "H"/);
+  assert.doesNotMatch(overlaySource, /FAVORITE_ACTIVE_COLOR|eraseLegacyFavoriteMarker|drawFavoriteMarkers/);
 });
 
-test("partially visible eleventh row clips F and H at their natural y + 8 position", () => {
-  assert.match(overlaySource, /LIST_CLIP_TOP = 24/);
-  assert.match(overlaySource, /LIST_CLIP_BOTTOM = 212/);
-  assert.doesNotMatch(overlaySource, /Math\.min\(y \+ 8/);
-  assert.match(overlaySource, /context\.rect\(menuX \+ 2, LIST_CLIP_TOP, MENU\.width - 6, LIST_CLIP_BOTTOM - LIST_CLIP_TOP\)/);
+test("partially visible eleventh row clips status lines with the normal menu item clip", () => {
   assert.match(appSource, /top\.rect\(menuX \+ 2, 24, MENU\.width - 6, 188\); top\.clip\(\)/);
+  assert.match(appSource, /fillRect\(menuX \+ 6 - statusIndex \+ itemOffset, y - 2, 1, 12\)/);
+  assert.doesNotMatch(appSource, /Math\.min\(y/);
 });
 
-test("overlay follows the same 30Hz frame contract as the base menu", () => {
+test("value lock adds no status line and overlay follows the base 30Hz frame contract", () => {
+  assert.doesNotMatch(overlaySource, /VALUE_LOCK_MARKER_COLOR/);
   assert.match(overlaySource, /const FRAME = root\.CTRPFUiModel\?\.FRAME/);
   assert.match(overlaySource, /if \(now < nextOverlayFrameAt\) return/);
   assert.match(overlaySource, /nextOverlayFrameAt = now \+ FRAME\.interval/);
