@@ -1,0 +1,33 @@
+name: Apply retention and status UI patch
+
+on:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: contains(github.event.head_commit.message, 'Stage retention and status UI patch')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply patch
+        run: python scripts/patch-retention-status-ui.py
+      - name: Run focused tests
+        run: |
+          node --test test/issues.test.js
+          node --test test/chat-kanji-preview.test.js
+          node --test test/value-lock-visual.test.js
+      - name: Remove temporary patch files
+        run: rm .github/workflows/temp-retention-status-ui.yml scripts/patch-retention-status-ui.py
+      - name: Commit patch
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add app.js issue-fixes.js issue-overlay.js chat-kanji-preview.js docs/chat-kanji-layout.md test/issues.test.js test/chat-kanji-preview.test.js test/value-lock-visual.test.js .github/workflows/temp-retention-status-ui.yml scripts/patch-retention-status-ui.py
+          git commit -m "Revise retention indicators and menu hints"
+          git push
