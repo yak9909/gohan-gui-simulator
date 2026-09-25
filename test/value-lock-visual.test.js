@@ -7,7 +7,7 @@ const path = require("node:path");
 
 const source = fs.readFileSync(path.join(__dirname, "..", "issue-overlay.js"), "utf8");
 
-test("VALUE LOCK uses only a 1px side marker and cyan value text", () => {
+test("値を固定 uses only a 1px side marker and cyan value text", () => {
   assert.match(source, /VALUE_LOCK_MARKER_COLOR = "#5cc8ff"/);
   assert.match(source, /VALUE_LOCK_VALUE_COLOR = "#5cc8ff"/);
   assert.match(source, /drawValueLockMarkers/);
@@ -16,6 +16,6 @@ test("VALUE LOCK uses only a 1px side marker and cyan value text", () => {
   assert.doesNotMatch(source, /drawBitmapText\(context, font, "S", menuX \+ 8, y, VALUE_LOCK/);
   assert.match(source, /entry\.type === "linked-value" && numericFont/);
   assert.match(source, /VALUE_LOCK_VALUE_COLOR/);
-  assert.match(source, /VALUE LOCK:ON/);
+  assert.match(source, /値を固定:ON/);
   assert.match(source, /drawBitmapText\(context, font, controlText, 176, 37, "#8f9a92"\)/);
 });
