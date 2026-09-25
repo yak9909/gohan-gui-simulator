@@ -10,8 +10,6 @@
   const VALUE_LOCK_MARKER_COLOR = "#5cc8ff";
   const VALUE_LOCK_VALUE_COLOR = "#5cc8ff";
   const FAVORITE_ACTIVE_COLOR = "#d6c98a";
-  const HOTKEY_ACTIVE_COLOR = "#78a9ff";
-  const MARKER_INACTIVE_COLOR = "#4c5550";
   const LIST_CLIP_TOP = 24;
   const LIST_CLIP_BOTTOM = 212;
   if (!MENU) return;
@@ -97,22 +95,7 @@
     }
   }
 
-  function favoriteMarkerColor(favoriteActive) {
-    return favoriteActive ? FAVORITE_ACTIVE_COLOR : MARKER_INACTIVE_COLOR;
-  }
-
-  function hotkeyMarkerColor(hotkeyActive) {
-    return hotkeyActive ? HOTKEY_ACTIVE_COLOR : MARKER_INACTIVE_COLOR;
-  }
-
-  function markerY(y) {
-    // F/H use the exact row baseline used by the item label/value. Do not move a
-    // partially visible row upward. The list viewport's existing rectangular clip
-    // cuts the glyphs naturally, exactly like the rest of the eleventh row.
-    return y;
-  }
-
-  function drawFavoriteHotkeyMarkers(context, font, menu, menuX, now) {
+  function drawFavoriteMarkers(context, font, menu, menuX, now) {
     const frame = menu.currentFrame();
     if (!frame?.items?.length || frame.kind === "settings") return;
     const start = menu.viewportStart(now);
@@ -126,18 +109,14 @@
       if (y >= LIST_CLIP_BOTTOM || y + MENU.itemHeight <= LIST_CLIP_TOP) continue;
       const itemOffset = index === frame.selection ? Math.round(activationOffset) : 0;
       const favoriteActive = Boolean(entry?.favoriteKey && menu.isFavorite(entry));
-      const hotkeyActive = Boolean(entry?.type !== "folder" && entry?.hotkey && entry.hotkey !== "なし");
-      const statusY = markerY(y);
+      if (!favoriteActive) continue;
 
-      // Inactive markers are not drawn. When both are active the rendering order is
-      // always F then H. Folders can only render F because they do not have hotkeys.
-      if (favoriteActive) {
-        eraseLegacyFavoriteMarker(context, font, menuX + itemOffset, y);
-        drawBitmapText(context, font, "F", menuX + 140 + itemOffset, statusY, favoriteMarkerColor(favoriteActive));
-      }
-      if (hotkeyActive) {
-        drawBitmapText(context, font, "H", menuX + 147 + itemOffset, statusY, hotkeyMarkerColor(hotkeyActive));
-      }
+      eraseLegacyFavoriteMarker(context, font, menuX + itemOffset, y);
+
+      // Keep F on the exact historical H baseline: app.js has always rendered H at
+      // y + 8. H itself stays in app.js and is not redrawn here, so there is only one
+      // H. Both glyphs therefore share the same row offset and the same menu clip.
+      drawBitmapText(context, font, "F", menuX + 140 + itemOffset, y + 8, FAVORITE_ACTIVE_COLOR);
     }
   }
 
@@ -184,8 +163,8 @@
     requestAnimationFrame(overlayFrame);
 
     // app.js is deliberately capped to 30Hz. Running this overlay at the browser's
-    // 60/120Hz would move F/H between two base-menu frames during menu opening and
-    // produce visible tearing. Keep this pass on the same 30Hz tick contract.
+    // 60/120Hz would move overlay pixels between two base-menu frames during menu
+    // opening. Keep this pass on the same 30Hz tick contract.
     if (now < nextOverlayFrameAt) return;
     nextOverlayFrameAt = now + FRAME.interval;
 
@@ -214,13 +193,14 @@
       context.strokeRect(menuX + 5.5, 201.5, MENU.width - 13, 13);
     }
 
-    // Use the exact same viewport rectangle as app.js. The eleventh row is not
-    // covered by another layer; it is clipped here in the same way as the item text.
+    // Match app.js exactly: items (including the historical H at y + 8) are clipped
+    // by this rectangle. F uses the same baseline and is naturally clipped with H on
+    // the partially visible eleventh row; neither glyph receives a special Y offset.
     context.save();
     context.beginPath();
     context.rect(menuX + 2, LIST_CLIP_TOP, MENU.width - 6, LIST_CLIP_BOTTOM - LIST_CLIP_TOP);
     context.clip();
-    drawFavoriteHotkeyMarkers(context, font, menu, menuX, now);
+    drawFavoriteMarkers(context, font, menu, menuX, now);
     drawValueLockMarkers(context, font, numericFont, menu, menuX, now);
     context.restore();
 
