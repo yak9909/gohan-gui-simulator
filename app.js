@@ -280,12 +280,17 @@ function boot() {
       if (entry.type !== "folder" && entry.hotkey !== "なし") statusColors.push("#78a9ff");
       if (menu.isItemRetained?.(entry)) statusColors.push("#e5484d");
       const statusHeight = 12;
+      // CTRPF移植時も各状態色へ同じ透過率を掛け、色分割の比率だけを変える。
+      const statusAlpha = 0.6;
+      top.save();
+      top.globalAlpha = statusAlpha;
       statusColors.forEach((statusColor, statusIndex) => {
         const segmentTop = Math.floor(statusHeight * statusIndex / statusColors.length);
         const segmentBottom = Math.floor(statusHeight * (statusIndex + 1) / statusColors.length);
         top.fillStyle = statusColor;
         top.fillRect(menuX + 4 + itemOffset, y - 2 + segmentTop, 1, segmentBottom - segmentTop);
       });
+      top.restore();
 
       drawItemIcon(entry, menuX + 8 + itemOffset, y, color);
       const value = formatValue(entry, now);

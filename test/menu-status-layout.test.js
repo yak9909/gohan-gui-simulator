@@ -19,6 +19,9 @@ test("row states use the historical 1px value-lock position and split vertically
   assert.match(appSource, /entry\.type !== "folder" && entry\.hotkey !== "なし".*statusColors\.push\("#78a9ff"\)/s);
   assert.match(appSource, /menu\.isItemRetained\?\.\(entry\).*statusColors\.push\("#e5484d"\)/s);
   assert.match(appSource, /const statusHeight = 12/);
+  assert.match(appSource, /const statusAlpha = 0\.6/);
+  assert.match(appSource, /top\.save\(\);\s*top\.globalAlpha = statusAlpha/s);
+  assert.match(appSource, /top\.restore\(\)/);
   assert.match(appSource, /segmentTop = Math\.floor\(statusHeight \* statusIndex \/ statusColors\.length\)/);
   assert.match(appSource, /segmentBottom = Math\.floor\(statusHeight \* \(statusIndex \+ 1\) \/ statusColors\.length\)/);
   assert.match(appSource, /fillRect\(menuX \+ 4 \+ itemOffset, y - 2 \+ segmentTop, 1, segmentBottom - segmentTop\)/);

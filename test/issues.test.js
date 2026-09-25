@@ -319,6 +319,9 @@ test("menu row status uses one vertically split 1px line at the historical value
   assert.match(appSource, /entry\.hotkey !== "なし"\) statusColors\.push\("#78a9ff"\)/);
   assert.match(appSource, /if \(menu\.isItemRetained\?\.\(entry\)\) statusColors\.push\("#e5484d"\)/);
   assert.match(appSource, /const statusHeight = 12/);
+  assert.match(appSource, /const statusAlpha = 0\.6/);
+  assert.match(appSource, /top\.save\(\);\s*top\.globalAlpha = statusAlpha/s);
+  assert.match(appSource, /top\.restore\(\)/);
   assert.match(appSource, /segmentTop = Math\.floor\(statusHeight \* statusIndex \/ statusColors\.length\)/);
   assert.match(appSource, /segmentBottom = Math\.floor\(statusHeight \* \(statusIndex \+ 1\) \/ statusColors\.length\)/);
   assert.match(appSource, /fillRect\(menuX \+ 4 \+ itemOffset, y - 2 \+ segmentTop, 1, segmentBottom - segmentTop\)/);
