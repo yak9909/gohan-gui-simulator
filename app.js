@@ -273,19 +273,18 @@ function boot() {
       const itemOffset = selected ? Math.round(activationOffset) : 0;
       const color = entry.disabled ? "#525b54" : isDirty(entry) ? "#ffd166" : selected ? "#ffffff" : "#aeb9b1";
 
-      // Keep the historical VALUE LOCK marker x position as the right edge, then
-      // extend the status marker one pixel left for a total width of 2px.
+      // Row states share the historical VALUE LOCK marker position as a 1px line.
       // CTRPF移植時も statusColors の順番を上→下の表示順として扱い、12pxを等分する。
       const statusColors = [];
       if (menu.isFavorite(entry)) statusColors.push("#d6c98a");
       if (entry.type !== "folder" && entry.hotkey !== "なし") statusColors.push("#78a9ff");
-      if (menu.isItemRetained?.(entry)) statusColors.push("#63e4a4");
+      if (menu.isItemRetained?.(entry)) statusColors.push("#e5484d");
       const statusHeight = 12;
       statusColors.forEach((statusColor, statusIndex) => {
         const segmentTop = Math.floor(statusHeight * statusIndex / statusColors.length);
         const segmentBottom = Math.floor(statusHeight * (statusIndex + 1) / statusColors.length);
         top.fillStyle = statusColor;
-        top.fillRect(menuX + 3 + itemOffset, y - 2 + segmentTop, 2, segmentBottom - segmentTop);
+        top.fillRect(menuX + 4 + itemOffset, y - 2 + segmentTop, 1, segmentBottom - segmentTop);
       });
 
       drawItemIcon(entry, menuX + 8 + itemOffset, y, color);
