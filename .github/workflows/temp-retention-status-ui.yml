@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   patch:
-    if: contains(github.event.head_commit.message, 'Finalize retention status feature')
+    if: contains(github.event.head_commit.message, 'Ship retention status feature')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,13 +28,14 @@ jobs:
           python scripts/finalize-retention-status-tests.py
           python scripts/fix-settings-a-routing.py
           python scripts/fix-retention-test-target.py
+          python scripts/fix-chat-kanji-tests.py
       - name: Run focused tests
         run: |
           node --test test/issues.test.js
           node --test test/chat-kanji-preview.test.js
           node --test test/value-lock-visual.test.js
       - name: Remove temporary patch files
-        run: rm .github/workflows/temp-retention-status-ui.yml scripts/patch-retention-status-ui.py scripts/finalize-retention-status-tests.py scripts/fix-settings-a-routing.py scripts/fix-retention-test-target.py patch-error.txt
+        run: rm .github/workflows/temp-retention-status-ui.yml scripts/patch-retention-status-ui.py scripts/finalize-retention-status-tests.py scripts/fix-settings-a-routing.py scripts/fix-retention-test-target.py scripts/fix-chat-kanji-tests.py patch-error.txt
       - name: Commit patch
         run: |
           git config user.name github-actions[bot]
