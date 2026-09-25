@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   patch:
-    if: contains(github.event.head_commit.message, 'Retry retention and status UI patch')
+    if: contains(github.event.head_commit.message, 'Finalize retention and status UI patch')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
