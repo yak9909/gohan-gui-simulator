@@ -123,6 +123,8 @@ test("START opens settings with retention controls and FAVORITES remains the fir
   assert.deepEqual(menu.currentFrame().items.map((entry) => entry.label), [
     "FAVORITES",
     "値を固定",
+    "この項目を保持",
+    "値の固定を保持",
     "お気に入りを保持",
     "オンにした項目を保持",
     "オンにしたお気に入りを保持"
@@ -153,8 +155,8 @@ test("START opens settings with retention controls and FAVORITES remains the fir
   assert.match(html, /issue-overlay\.js/);
   assert.ok(html.indexOf("issue-fixes.js") < html.indexOf("app.js"));
   assert.ok(html.indexOf("app.js") < html.indexOf("issue-overlay.js"));
-  assert.match(overlaySource, /通常のチート説明欄には/);
-  assert.match(overlaySource, /else controlText = `\$\{menu\.isItemFixed/);
+  assert.doesNotMatch(overlaySource, /R:FAV|START:CLOSE|A:SELECT/);
+  assert.match(overlaySource, /menu\.isItemFixed\?\.\(selected\) \? "値を固定:ON" : ""/);
 });
 
 test("値を固定 pins only editable linked list/value items", () => {
@@ -207,7 +209,7 @@ test("値を固定 pins only editable linked list/value items", () => {
   assert.match(overlaySource, /値を固定/);
 });
 
-test("retained state includes listboxes, numeric values, checkboxes and fixed linked values", () => {
+test("retained state and value-lock state are persisted independently", () => {
   const menu = new CheatMenuModel();
   const walking = findItem(menu, "歩行速度アップ");
   const weather = findItem(menu, "天候");
@@ -233,8 +235,9 @@ test("retained state includes listboxes, numeric values, checkboxes and fixed li
   assert.equal(all[walking.favoriteKey].value, true);
   assert.equal(all[weather.favoriteKey].value, 2);
   assert.equal(all[bells.favoriteKey].value, 4200);
-  assert.deepEqual(all[linked.favoriteKey], { type: "linked-value", value: 1777, fixed: true, fixedValue: 1777 });
+  assert.deepEqual(all[linked.favoriteKey], { type: "linked-value", value: 1777 });
   assert.deepEqual(Object.keys(favorites), [weather.favoriteKey]);
+  assert.deepEqual(menu.valueLockStateSnapshot()[linked.favoriteKey], { type: "linked-value", fixedValue: 1777 });
 
   const restored = new CheatMenuModel();
   const count = restored.restoreRetainedStateSnapshot(all);
@@ -243,28 +246,42 @@ test("retained state includes listboxes, numeric values, checkboxes and fixed li
   assert.equal(findItem(restored, "天候").appliedValue, 2);
   assert.equal(findItem(restored, "所持ベル").appliedValue, 4200);
   const restoredLinked = findItem(restored, "連動型数値");
+  assert.equal(Boolean(restoredLinked.fixed), false, "applied-state retention does not implicitly retain value locks");
+  restored.restoreValueLockStateSnapshot(menu.valueLockStateSnapshot());
   assert.equal(restoredLinked.fixed, true);
   assert.equal(restoredLinked.fixedValue, 1777);
-  assert.match(fixesSource, /値固定、list\/listbox、linked-list、value、slider、linked-value/);
+  assert.match(fixesSource, /list\/listbox、linked-list、value、slider、linked-value/);
+  assert.match(fixesSource, /値の固定状態そのものは「値の固定を保持」で別途管理/);
   assert.match(fixesSource, /未適用の編集中値は保存しない/);
 });
 
 test("retention settings toggle independently inside SETTINGS", () => {
   const menu = new CheatMenuModel();
   menu.open(0);
+  menu.currentFrame().selection = 1;
   menu.handle("start", 100, true, false);
   const frame = menu.currentFrame();
 
   frame.selection = 2;
+  assert.equal(menu.selectedItem().label, "この項目を保持");
+  menu.handle("a", 110, true, false);
   assert.equal(menu.selectedItem().value, true);
-  menu.handle("a", 120, true, false);
-  assert.equal(menu.persistenceSettingsSnapshot().keepFavorites, false);
+  assert.equal(menu.isItemRetained(menu.selectedItem().settingsTarget), true);
 
   frame.selection = 3;
+  menu.handle("a", 120, true, false);
+  assert.equal(menu.persistenceSettingsSnapshot().keepValueLocks, true);
+
+  frame.selection = 4;
+  assert.equal(menu.selectedItem().value, true);
+  menu.handle("a", 130, true, false);
+  assert.equal(menu.persistenceSettingsSnapshot().keepFavorites, false);
+
+  frame.selection = 5;
   menu.handle("a", 140, true, false);
   assert.equal(menu.persistenceSettingsSnapshot().keepEnabledItems, true);
 
-  frame.selection = 4;
+  frame.selection = 6;
   menu.handle("a", 160, true, false);
   assert.equal(menu.persistenceSettingsSnapshot().keepEnabledFavorites, true);
 });
@@ -297,10 +314,26 @@ test("notification overflow exits upward and is removed only after it is fully o
   assert.match(fixesSource, /this\.getY\(item, now\) \+ \(item\.noticeHeight \|\| NOTICE\.height\) > 0/);
 });
 
-test("menu row status markers use the historical lower H baseline without duplicate H", () => {
-  assert.match(overlaySource, /drawBitmapText\(context, font, "F", menuX \+ 140 \+ itemOffset, y \+ 8, FAVORITE_ACTIVE_COLOR\)/);
-  assert.match(appSource, /entry\.type !== "folder" && entry\.hotkey !== "なし"[\s\S]*drawBitmapText\(top, font, "H", menuX \+ 147 \+ itemOffset, y \+ 8, "#78a9ff"\)/);
-  assert.doesNotMatch(overlaySource, /drawBitmapText\(context, font, "H"/);
-  assert.doesNotMatch(overlaySource, /MARKER_INACTIVE_COLOR/);
-  assert.match(overlaySource, /eraseLegacyFavoriteMarker/);
+test("menu row status uses stacked 1px lines and no F/H glyph markers", () => {
+  assert.match(appSource, /if \(menu\.isItemRetained\?\.\(entry\)\) statusColors\.push\("#63e4a4"\)/);
+  assert.match(appSource, /if \(menu\.isFavorite\(entry\)\) statusColors\.push\("#d6c98a"\)/);
+  assert.match(appSource, /entry\.hotkey !== "なし"\) statusColors\.push\("#78a9ff"\)/);
+  assert.match(appSource, /fillRect\(menuX \+ 6 - statusIndex \+ itemOffset, y - 2, 1, 12\)/);
+  assert.doesNotMatch(appSource, /drawBitmapText\(top, font, "F"/);
+  assert.doesNotMatch(appSource, /drawBitmapText\(top, font, "H"/);
+  assert.doesNotMatch(overlaySource, /eraseLegacyFavoriteMarker|drawFavoriteMarkers/);
+  assert.doesNotMatch(overlaySource, /VALUE_LOCK_MARKER_COLOR/);
+});
+
+test("description and footer hints follow the compact Japanese key layout", () => {
+  assert.doesNotMatch(appSource, /R:ADD FAVORITE|R:REMOVE|START:FAVORITES/);
+  assert.match(appSource, /"Yホットキー"/);
+  assert.match(appSource, /"START設定"/);
+  assert.match(appSource, /"R星"/);
+  assert.match(appSource, /drawBitmapText\(top, font, "B戻る", footerYX/);
+  assert.match(appSource, /drawBitmapText\(top, font, "L戻し", footerStartX/);
+  assert.match(appSource, /footerStartX \+ measureBitmapText\(font, "START設定"\) \+ footerSpace/);
+  assert.match(appSource, /drawBitmapText\(top, font, line, x \+ 8, y \+ 42 \+ index \* 11, "#c4cec7"\)/);
+  assert.doesNotMatch(appSource, /entry\.disabled \? "#626b64"/);
+  assert.doesNotMatch(overlaySource, /R:FAV|START:CLOSE|A:SELECT/);
 });

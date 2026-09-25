@@ -19,7 +19,7 @@
     kanaKeyWidth: 24, kanaKeyHeight: 22,
     cursorButtonY: 1, inputTopY: 23
   });
-  const CLEAR_BUTTON = Object.freeze({
+  const SELECT_ALL_BUTTON = Object.freeze({
     x: CHAT_LAYOUT.deleteColumnX,
     y: CHAT_LAYOUT.candidateY,
     width: CHAT_LAYOUT.deleteColumnWidth,
@@ -75,6 +75,9 @@
     "カ":{"left":1,"glyphWidth":14,"charWidth":16,"rows":["00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","000006d4000000000","00000bf8000000000","00000bf7000000000","4fffffffffffa0000","05555ff9556ef6000","00001ff2000bf7000","00004ff0000bf7000","00008fa0000df6000","0000ef40000ef5000","0006fc00001ff2000","001ef300005ff0000","00cf600000cfa0000","2df603fdbeff20000","ec30004aefd400000","10000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000"]},
     "ン":{"left":1,"glyphWidth":14,"charWidth":16,"rows":["00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","8c710000000000000","3dff8100000020000","00bffe000001f5000","0009ff000007f2000","00005300000ec0000","00000000009f50000","0000000005fd00000","000000006ff300000","0000001aff5000000","00004afff50000000","1adffffc200000000","5ffffb40000000000","06740000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000"]},
     "ジ":{"left":0,"glyphWidth":15,"charWidth":16,"rows":["00000000000000000","00000000000000000","00000000000000000","00000000000000000","000000000690e6000","0063000005e49e300","01dffa3000ce1eb00","0007fff1003e16700","00001bc000006c000","584000000000db000","7fff91000003f6000","01affa00000cf0000","0005b400008f80000","0000000007fd00000","00000001aff200000","0000039ffe3000000","04acffffb10000000","0cffffa3000000000","02763000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000"]},
+    "全":{"left":0,"glyphWidth":16,"charWidth":16,"rows":["00000000000000000","00000000000000000","00000000000000000","00000000000000000","0000004b800000000","000003fffc0000000","00001efd4fd200000","0001dfd104ff81000","003efb10004fff910","08ffc6555558fff90","9f9cffffffffd7d40","1100001ff00000000","0000001ff00000000","0035557ff55552000","00affffffffffa000","0000001ff00000000","0000001ff00000000","1777778ff77777700","4ffffffffffffff20","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000"]},
+    "選":{"left":0,"glyphWidth":16,"charWidth":16,"rows":["00000000000000000","00000000000000000","00000000000000000","00000000000000000","00001333013331000","4e505bcf97bbef100","0df5056fb055cf100","03fe6f8777fa76700","00547f98f9fa7bc00","000019bc519dba300","0000006f206f40000","9ff72bdfcbdfdb500","14fb039f639f83100","00fb57bf97bfa7600","00fb79ada9bc99700","00fb02bf509fe9000","06ffafb50002ae100","9fd4ffcbbbbddff20","af302adfffffffc00","02000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000"]},
+    "択":{"left":0,"glyphWidth":16,"charWidth":16,"rows":["00000000000000000","00000000000000000","00000000000000000","00000000000000000","00291000111110000","007f503ffffffe100","007f507f60008f500","47bfa79f50007f500","69cfc99f50007f500","007f507f50007f500","007f507f71119f500","007fabbffffffd100","27dff98f504f00000","dfff608f502f50000","479f50af300fa0000","007f50cf000bf2000","007f51fb0006fc000","008f57f30000efa00","9dff5f9000007ff10","28b83a00000008700","00000000000000000","00000000000000000","00000000000000000","00000000000000000"]},
     "ク":{"left":1,"glyphWidth":13,"charWidth":16,"rows":["00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00001dc0000000000","00007fe0000000000","0000efffffff80000","0009fd3333aff0000","005ff20000bfc0000","03ff300001ff70000","3fe3000009fe00000","ec2000002ff700000","10000000dfc000000","0000000cfe1000000","000002dfd20000000","00018ffa100000000","06affc40000000000","2db72000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000"]},
     "リ":{"left":3,"glyphWidth":10,"charWidth":16,"rows":["00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","15000000420000000","af600002fe0000000","bf700003ff0000000","bf700003ff0000000","bf700003ff0000000","bf700003ff0000000","bf700003ff0000000","bf700006fe0000000","9f500009fb0000000","0000001ef60000000","000000bfd00000000","00003cfe200000000","058dffa1000000000","4fda6100000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000"]},
     "ア":{"left":1,"glyphWidth":14,"charWidth":16,"rows":["00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","7ffffffffffff8000","15555555555cff000","00000591000cfc000","00000df7003ff4000","00000df700cfa0000","00000ef60cfc00000","00000ff4df8000000","00004ff0210000000","0000afa0000000000","0003ff20000000000","003ef600000000000","08fe5000000000000","5f810000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000"]},
@@ -286,41 +289,20 @@ context.globalAlpha = baseAlpha;
       && point.y >= rectangle.y && point.y < rectangle.y + rectangle.height;
   }
 
-  function roundedRectPath(context, x, y, width, height, radius) {
-    const r = Math.max(0, Math.min(radius, width / 2, height / 2));
-    context.beginPath();
-    context.moveTo(x + r, y);
-    context.lineTo(x + width - r, y);
-    context.quadraticCurveTo(x + width, y, x + width, y + r);
-    context.lineTo(x + width, y + height - r);
-    context.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
-    context.lineTo(x + r, y + height);
-    context.quadraticCurveTo(x, y + height, x, y + height - r);
-    context.lineTo(x, y + r);
-    context.quadraticCurveTo(x, y, x + r, y);
-    context.closePath();
-  }
+  function drawAcNlControlKey(context, rectangle, label, pressed, fontData = DRAW_DATA, scale = 1) {
+    context.fillStyle = CANDIDATE_COLORS.panel;
+    context.fillRect(rectangle.x, rectangle.y, rectangle.width, rectangle.height);
+    context.strokeStyle = CANDIDATE_COLORS.border;
+    context.strokeRect(rectangle.x + 0.5, rectangle.y + 0.5, rectangle.width - 1, rectangle.height - 1);
+    if (pressed) {
+      context.fillStyle = CANDIDATE_COLORS.selected;
+      context.fillRect(rectangle.x + 1, rectangle.y + 1, rectangle.width - 2, rectangle.height - 2);
+    }
 
-  function drawGohanControlButton(context, rectangle, label, pressed, fontData = DRAW_DATA) {
-    roundedRectPath(context, rectangle.x + 0.5, rectangle.y + 0.5, rectangle.width - 1, rectangle.height - 1, 3);
-    context.fillStyle = pressed ? CONTROL_COLORS.pressedFill : CONTROL_COLORS.fill;
-    context.fill();
-    context.strokeStyle = pressed ? CONTROL_COLORS.pressedBorder : CONTROL_COLORS.border;
-    context.stroke();
-
-    const textWidth = measureBcfntText(label, fontData, 1);
+    const textWidth = measureBcfntText(label, fontData, scale);
     const textX = rectangle.x + Math.floor((rectangle.width - textWidth) / 2);
-    // Garden_msg_size16 has a 24px cell; its arrow ink sits around rows 8..14.
-    // Starting the 24px BCFNT cell one pixel above the button centers that ink in the measured 22px key height.
-    drawBcfntText(
-      context,
-      label,
-      textX,
-      rectangle.y - 1,
-      pressed ? CONTROL_COLORS.pressedText : CONTROL_COLORS.text,
-      fontData,
-      1
-    );
+    const textCellY = scale < 0.999 ? CANDIDATE_BAR.textCellY : rectangle.y - 1;
+    drawBcfntText(context, label, textX, textCellY, CANDIDATE_COLORS.text, fontData, scale);
   }
 
   function drawPreviewControls(context, controlState = null, fontData = DRAW_DATA) {
@@ -347,26 +329,17 @@ context.globalAlpha = baseAlpha;
     );
 
     // The split is exactly the x=279 separator above the source image's 消去 key.
-    context.fillRect(CLEAR_BUTTON.x, CLEAR_BUTTON.y, 1, CLEAR_BUTTON.height);
-    if (state.pressed === "clear") {
-      context.fillStyle = CONTROL_COLORS.pressedFill;
-      context.fillRect(CLEAR_BUTTON.x + 1, CLEAR_BUTTON.y + 1, CLEAR_BUTTON.width - 2, CLEAR_BUTTON.height - 2);
-    }
-
-    const clearLabel = "クリア";
-    const clearWidth = measureBcfntText(clearLabel, fontData, bar.textScale);
-    drawBcfntText(
+    // 全選択 and the two cursor keys all use one ACNL keyboard-key renderer.
+    drawAcNlControlKey(
       context,
-      clearLabel,
-      CLEAR_BUTTON.x + Math.floor((CLEAR_BUTTON.width - clearWidth) / 2),
-      bar.textCellY,
-      state.pressed === "clear" ? CONTROL_COLORS.pressedText : CANDIDATE_COLORS.text,
+      SELECT_ALL_BUTTON,
+      "全選択",
+      state.pressed === "select-all",
       fontData,
       bar.textScale
     );
-
-    drawGohanControlButton(context, CURSOR_BUTTONS.left, "←", state.pressed === "left", fontData);
-    drawGohanControlButton(context, CURSOR_BUTTONS.right, "→", state.pressed === "right", fontData);
+    drawAcNlControlKey(context, CURSOR_BUTTONS.left, "←", state.pressed === "left", fontData, 1);
+    drawAcNlControlKey(context, CURSOR_BUTTONS.right, "→", state.pressed === "right", fontData, 1);
   }
 
   function drawPreview(context, sourceImage, stateOrIndex = 0, fontData = DRAW_DATA, controlState = null) {
@@ -415,8 +388,8 @@ context.globalAlpha = baseAlpha;
       const point = canvasPoint(canvas, event);
       if (!menu || !isPreviewEnabled(menu) || menu.overlay?.screen === "bottom") return;
 
-      if (pointInside(point, CLEAR_BUTTON)) {
-        controlState.pressed = "clear";
+      if (pointInside(point, SELECT_ALL_BUTTON)) {
+        controlState.pressed = "select-all";
         canvas.setPointerCapture?.(event.pointerId);
         event.preventDefault();
         event.stopPropagation();
@@ -503,7 +476,7 @@ context.globalAlpha = baseAlpha;
 
   const api = Object.freeze({
     CHAT_LAYOUT,
-    CLEAR_BUTTON,
+    SELECT_ALL_BUTTON,
     CANDIDATE_BAR,
     CURSOR_BUTTONS,
     CANDIDATE_COLORS,
@@ -526,7 +499,7 @@ context.globalAlpha = baseAlpha;
     scrollCandidates,
     drawCandidateBar,
     drawPreviewControls,
-    drawGohanControlButton,
+    drawAcNlControlKey,
     drawPreview,
     pointInside,
     install

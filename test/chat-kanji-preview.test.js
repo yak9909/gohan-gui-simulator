@@ -68,6 +68,11 @@ test("preview uses the supplied ACNL screenshot and Garden BCFNT subset", () => 
   assert.equal(preview.EXTRA_GLYPHS["ア"].rows[6], "7ffffffffffff8000");
   assert.equal(preview.EXTRA_GLYPHS["←"].rows[11], "afffffffffffffa00");
   assert.equal(preview.EXTRA_GLYPHS["→"].rows[11], "afffffffffffffa00");
+  for (const character of "全選択") {
+    const glyph = preview.DRAW_DATA.glyphs[character];
+    assert.ok(glyph, `missing Garden key glyph: ${character}`);
+    assert.equal(glyph.rows.length, 24);
+  }
 });
 
 test("candidate glyphs are compact and stay inside the strip below the input field", () => {
@@ -98,10 +103,10 @@ test("candidate glyphs are compact and stay inside the strip below the input fie
   assert.equal(preview.CHAT_LAYOUT.width, 318);
   assert.equal(preview.CANDIDATE_BAR.x, 1);
   assert.equal(preview.CANDIDATE_BAR.width, 278);
-  assert.equal(preview.CLEAR_BUTTON.x, 279);
-  assert.equal(preview.CLEAR_BUTTON.width, 40);
-  assert.equal(preview.CANDIDATE_BAR.width + preview.CLEAR_BUTTON.width, preview.CHAT_LAYOUT.width);
-  assert.equal(preview.CLEAR_BUTTON.x + preview.CLEAR_BUTTON.width, preview.CHAT_LAYOUT.x + preview.CHAT_LAYOUT.width);
+  assert.equal(preview.SELECT_ALL_BUTTON.x, 279);
+  assert.equal(preview.SELECT_ALL_BUTTON.width, 40);
+  assert.equal(preview.CANDIDATE_BAR.width + preview.SELECT_ALL_BUTTON.width, preview.CHAT_LAYOUT.width);
+  assert.equal(preview.SELECT_ALL_BUTTON.x + preview.SELECT_ALL_BUTTON.width, preview.CHAT_LAYOUT.x + preview.CHAT_LAYOUT.width);
   assert.ok(pixels.some((pixel) => pixel.alpha > 0 && pixel.alpha < 1), "A4 alpha coverage should survive compact rendering");
 });
 
@@ -132,15 +137,15 @@ test("candidate list supports horizontal scrolling and selection-following", () 
   assert.equal(state.scrollX, 0, "selection should scroll back to the first candidate");
 });
 
-test("clear and cursor controls follow measured source-image geometry without replacing the input field", () => {
+test("select-all and cursor controls follow measured source-image geometry without replacing the input field", () => {
   assert.equal(preview.CHAT_LAYOUT.deleteColumnX, 279);
   assert.equal(preview.CHAT_LAYOUT.deleteColumnWidth, 40);
-  assert.equal(preview.CLEAR_BUTTON.x, 279, "clear key begins on the same vertical separator as 消去");
-  assert.equal(preview.CLEAR_BUTTON.width, 40, "clear key uses the full 消去 column width");
-  assert.equal(preview.CLEAR_BUTTON.y + preview.CLEAR_BUTTON.height, preview.CHAT_LAYOUT.keyboardContentY);
-  assert.ok(preview.CLEAR_BUTTON.y < preview.CHAT_LAYOUT.keyboardTopY,
+  assert.equal(preview.SELECT_ALL_BUTTON.x, 279, "select-all key begins on the same vertical separator as 消去");
+  assert.equal(preview.SELECT_ALL_BUTTON.width, 40, "select-all key uses the full 消去 column width");
+  assert.equal(preview.SELECT_ALL_BUTTON.y + preview.SELECT_ALL_BUTTON.height, preview.CHAT_LAYOUT.keyboardContentY);
+  assert.ok(preview.SELECT_ALL_BUTTON.y < preview.CHAT_LAYOUT.keyboardTopY,
     "conversion row starts in the gap below the existing input field");
-  assert.ok(preview.CLEAR_BUTTON.y + preview.CLEAR_BUTTON.height > preview.CHAT_LAYOUT.keyboardTopY,
+  assert.ok(preview.SELECT_ALL_BUTTON.y + preview.SELECT_ALL_BUTTON.height > preview.CHAT_LAYOUT.keyboardTopY,
     "conversion row intentionally covers the source keyboard's rounded top edge");
 
   assert.equal(preview.CHAT_LAYOUT.kanaKeyWidth, 24);
@@ -162,13 +167,12 @@ test("clear and cursor controls follow measured source-image geometry without re
 test("conversion row shares the keyboard edge and keeps the original input field untouched", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "chat-kanji-preview.js"), "utf8");
   assert.match(source, /fillRect\(CHAT_LAYOUT\.x, bar\.y, CHAT_LAYOUT\.width, bar\.height\)/);
-  assert.match(source, /CLEAR_BUTTON\.x, CLEAR_BUTTON\.y, 1, CLEAR_BUTTON\.height/);
+  assert.match(source, /SELECT_ALL_BUTTON/);
   assert.match(source, /CHAT_LAYOUT\.candidateY \+ CHAT_LAYOUT\.candidateHeight - 1/);
-  assert.match(source, /const clearLabel = "クリア"/);
-  assert.match(source, /drawBcfntText\([\s\S]*clearLabel/);
-  assert.match(source, /drawGohanControlButton\(context, CURSOR_BUTTONS\.left, "←"/);
-  assert.match(source, /drawGohanControlButton\(context, CURSOR_BUTTONS\.right, "→"/);
-  assert.match(source, /pointInside\(point, CLEAR_BUTTON\)/);
+  assert.match(source, /drawAcNlControlKey\([\s\S]*SELECT_ALL_BUTTON,[\s\S]*"全選択"/);
+  assert.match(source, /drawAcNlControlKey\(context, CURSOR_BUTTONS\.left, "←"/);
+  assert.match(source, /drawAcNlControlKey\(context, CURSOR_BUTTONS\.right, "→"/);
+  assert.match(source, /pointInside\(point, SELECT_ALL_BUTTON\)/);
   assert.match(source, /pointInside\(point, CURSOR_BUTTONS\.left\)/);
   assert.match(source, /pointInside\(point, CURSOR_BUTTONS\.right\)/);
 

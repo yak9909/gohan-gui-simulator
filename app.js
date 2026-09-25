@@ -272,15 +272,26 @@ function boot() {
       const selected = index === selection;
       const itemOffset = selected ? Math.round(activationOffset) : 0;
       const color = entry.disabled ? "#525b54" : isDirty(entry) ? "#ffd166" : selected ? "#ffffff" : "#aeb9b1";
+
+      // Compact status indicators use 1px vertical lines beside the row. The first
+      // active state stays closest to the item and subsequent states stack leftward.
+      // 値を固定 is intentionally not represented here; its value color is sufficient.
+      const statusColors = [];
+      if (menu.isItemRetained?.(entry)) statusColors.push("#63e4a4");
+      if (menu.isFavorite(entry)) statusColors.push("#d6c98a");
+      if (entry.type !== "folder" && entry.hotkey !== "なし") statusColors.push("#78a9ff");
+      statusColors.forEach((statusColor, statusIndex) => {
+        top.fillStyle = statusColor;
+        top.fillRect(menuX + 6 - statusIndex + itemOffset, y - 2, 1, 12);
+      });
+
       drawItemIcon(entry, menuX + 8 + itemOffset, y, color);
-      if (menu.isFavorite(entry)) drawBitmapText(top, font, "F", menuX + 22 + itemOffset, y, "#d6c98a");
       const value = formatValue(entry, now);
       const valueFont = isNumericEntry(entry) ? numericFont : font;
       const valueWidth = value ? measureBitmapText(valueFont, value) : 0;
       const labelWidth = MENU.width - 33 - valueWidth;
       drawBitmapText(top, font, trimBitmapText(font, entry.label, labelWidth), menuX + 27 + itemOffset, y, color);
       if (value) drawBitmapText(top, valueFont, value, menuX + MENU.width - 8 - valueWidth + itemOffset, y, color);
-      if (entry.type !== "folder" && entry.hotkey !== "なし") drawBitmapText(top, font, "H", menuX + 147 + itemOffset, y + 8, "#78a9ff");
       if (!entry.disabled && y >= 25 && y <= 204) topHitRegions.push({ x: menuX + 4, y: y - 3, width: MENU.width - 10, height: 16, itemIndex: index });
     }
     top.restore();
@@ -288,9 +299,30 @@ function boot() {
 
     const changed = menu.dirtyCount();
     top.fillStyle = "rgba(21, 27, 23, .76)"; top.fillRect(menuX, 216, MENU.width - 2, 24);
-    drawBitmapText(top, font, "A決定 X適用 Y HOTKEY", menuX + 6, 220, "#829087");
+
+    // Keep each help token independently positioned. In particular, a two-digit
+    // dirty count must never push the second-row controls sideways.
+    const footerAX = menuX + 6;
+    const footerXX = menuX + 30;
+    const footerYX = menuX + 54;
+    const footerStartX = menuX + 102;
+    const footerSpace = measureBitmapText(font, " ");
+    drawBitmapText(top, font, "A決定", footerAX, 220, "#829087");
+    drawBitmapText(top, font, "X適用", footerXX, 220, "#829087");
+    drawBitmapText(top, font, "Yホットキー", footerYX, 220, "#829087");
+    drawBitmapText(top, font, "START設定", footerStartX, 220, "#829087");
+
     drawBitmapText(top, font, `${changed}変更`, menuX + 6, 230, changed ? "#ffd166" : "#58635b");
-    drawBitmapText(top, font, "B戻る L戻し R FAV", menuX + 59, 230, "#829087");
+    drawBitmapText(top, font, "B戻る", footerYX, 230, "#829087");
+    drawBitmapText(top, font, "L戻し", footerStartX, 230, "#829087");
+    drawBitmapText(
+      top,
+      font,
+      "R星",
+      footerStartX + measureBitmapText(font, "START設定") + footerSpace,
+      230,
+      "#829087"
+    );
     drawHoldProgress(menuX, now);
 
     if (menu.inlineList) drawInlineList(menuX, start, now);
@@ -345,9 +377,9 @@ function boot() {
       const badgeWidth = measureBitmapText(font, badge.text);
       drawBitmapText(top, font, badge.text, x + width - 8 - badgeWidth, y + 18, badge.color);
     }
-    drawBitmapText(top, font, menu.isFavorite(entry) ? "FAVORITE  R:REMOVE" : "R:ADD FAVORITE", x + 8, y + 29, menu.isFavorite(entry) ? "#ffd166" : "#8f9a92");
-    drawBitmapText(top, font, "START:FAVORITES", x + 116, y + 29, "#8f9a92");
-    lines.forEach((line, index) => drawBitmapText(top, font, line, x + 8, y + 42 + index * 11, entry.disabled ? "#626b64" : "#c4cec7"));
+    // Per-item control hints live in the menu footer. Keep this row free for the
+    // fixed-value status overlay and always keep disabled-item descriptions readable.
+    lines.forEach((line, index) => drawBitmapText(top, font, line, x + 8, y + 42 + index * 11, "#c4cec7"));
     top.restore();
   }
 
