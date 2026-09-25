@@ -1,0 +1,77 @@
+--- a/chat-kanji-preview.js
++++ b/chat-kanji-preview.js
+@@ -6,42 +6,55 @@
+     : root.ACNL_CHAT_KANJI_PREVIEW_DATA;
+   if (!data) return;
+ 
+-  // The conversion row and the kana keyboard share one 304px-wide body.
+-  // The new clear key occupies the same right-side utility-key column as 消去;
+-  // the candidate viewport gives up exactly that width instead of overlapping it.
++  // Measured directly from the embedded 320x240 ACNL lower-screen reference:
++  // keyboard outer pixels x=1..318, rounded keyboard top edge y=66..67,
++  // 消去 column x=279..318, kana-key pitch 24x22, and the existing input field begins at y=23.
++  // The conversion row covers that old rounded top edge and replaces it with one
++  // straight shared divider at y=67, so it reads as an actual extra keyboard row.
+   const CHAT_LAYOUT = Object.freeze({
+-    x: 8, width: 304,
+-    candidateY: 49, candidateHeight: 17,
+-    clearWidth: 44,
+-    cursorButtonSize: 17, cursorButtonGap: 2, cursorButtonY: 10
++    x: 1, width: 318,
++    candidateY: 49, candidateHeight: 19,
++    keyboardTopY: 66, keyboardContentY: 68,
++    deleteColumnX: 279, deleteColumnWidth: 40,
++    kanaKeyWidth: 24, kanaKeyHeight: 22,
++    cursorButtonY: 1, inputTopY: 23
+   });
+   const CLEAR_BUTTON = Object.freeze({
+-    x: CHAT_LAYOUT.x + CHAT_LAYOUT.width - CHAT_LAYOUT.clearWidth,
++    x: CHAT_LAYOUT.deleteColumnX,
+     y: CHAT_LAYOUT.candidateY,
+-    width: CHAT_LAYOUT.clearWidth,
++    width: CHAT_LAYOUT.deleteColumnWidth,
+     height: CHAT_LAYOUT.candidateHeight
+   });
+   const CANDIDATE_BAR = Object.freeze({
+-    x: CHAT_LAYOUT.x, y: CHAT_LAYOUT.candidateY,
+-    width: CHAT_LAYOUT.width - CHAT_LAYOUT.clearWidth, height: CHAT_LAYOUT.candidateHeight,
++    x: CHAT_LAYOUT.x,
++    y: CHAT_LAYOUT.candidateY,
++    width: CHAT_LAYOUT.deleteColumnX - CHAT_LAYOUT.x,
++    height: CHAT_LAYOUT.candidateHeight,
+     gap: 2, paddingX: 4, textCellY: 48, textScale: 0.72
+   });
+   const CURSOR_BUTTONS = Object.freeze({
+     left: Object.freeze({
+-      x: CHAT_LAYOUT.x + CHAT_LAYOUT.width - CHAT_LAYOUT.cursorButtonSize * 2 - CHAT_LAYOUT.cursorButtonGap,
++      x: CHAT_LAYOUT.x + CHAT_LAYOUT.width - CHAT_LAYOUT.kanaKeyWidth * 2,
+       y: CHAT_LAYOUT.cursorButtonY,
+-      width: CHAT_LAYOUT.cursorButtonSize,
+-      height: CHAT_LAYOUT.cursorButtonSize
++      width: CHAT_LAYOUT.kanaKeyWidth,
++      height: CHAT_LAYOUT.kanaKeyHeight
+     }),
+     right: Object.freeze({
+-      x: CHAT_LAYOUT.x + CHAT_LAYOUT.width - CHAT_LAYOUT.cursorButtonSize,
++      x: CHAT_LAYOUT.x + CHAT_LAYOUT.width - CHAT_LAYOUT.kanaKeyWidth,
+       y: CHAT_LAYOUT.cursorButtonY,
+-      width: CHAT_LAYOUT.cursorButtonSize,
+-      height: CHAT_LAYOUT.cursorButtonSize
++      width: CHAT_LAYOUT.kanaKeyWidth,
++      height: CHAT_LAYOUT.kanaKeyHeight
+     })
+   });
+-  const INPUT_TEXT_AREA = Object.freeze({ x: 14, y: 10, width: 254, height: 31, textX: 18, caretY: 16, caretHeight: 18, advance: 16 });
+-  const INPUT_PREVIEW_TEXT = "かんじ";
++  const CONTROL_COLORS = Object.freeze({
++    fill: "rgba(28, 35, 30, .76)",
++    pressedFill: "rgba(49, 88, 68, .82)",
++    border: "#3a453d",
++    pressedBorder: "#63e4a4",
++    text: "#b7c1b9",
++    pressedText: "#ffffff",
++    rowEdge: "#3a1d0c"
++  });
+   const CANDIDATE_COLORS = Object.freeze({
+   // The supplied ACNL screenshot uses this dark brown on utility keys such as delete/space.
+   panel: "#522810",
