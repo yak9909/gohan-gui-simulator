@@ -114,11 +114,14 @@
       eraseLegacyFavoriteMarker(context, font, menuX + itemOffset, y);
 
       const hotkeyActive = Boolean(entry?.type !== "folder" && entry?.hotkey && entry.hotkey !== "なし");
-      // Treat F/H as one right-aligned status group. H keeps its historical x=147
-      // position in app.js. When H is absent, F moves into that rightmost column;
-      // when both are active, F occupies x=140 so the visible order remains F then H.
-      const favoriteX = hotkeyActive ? 140 : 147;
-      drawBitmapText(context, font, "F", menuX + favoriteX + itemOffset, y + 8, FAVORITE_ACTIVE_COLOR);
+      // F/H are a right-aligned status group on the historical H baseline (y + 8).
+      // H remains at x=147 in app.js. With both markers active F uses x=140;
+      // without H, F occupies the rightmost x=147 column instead.
+      if (hotkeyActive) {
+        drawBitmapText(context, font, "F", menuX + 140 + itemOffset, y + 8, FAVORITE_ACTIVE_COLOR);
+      } else {
+        drawBitmapText(context, font, "F", menuX + 147 + itemOffset, y + 8, FAVORITE_ACTIVE_COLOR);
+      }
     }
   }
 
