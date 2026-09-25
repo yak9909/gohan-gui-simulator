@@ -5,6 +5,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
+// Keep the keyboard-width conversion row, clear key, and cursor buttons under one regression contract.
 const core = require("../ui-model.js");
 require("../issue-fixes.js");
 require("../chat-kanji-preview-model.js");
