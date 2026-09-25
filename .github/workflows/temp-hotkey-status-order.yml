@@ -28,3 +28,5 @@ jobs:
           git add -A
           git commit -m "Place hotkey status segment last"
           git push
+
+# v2 trigger
