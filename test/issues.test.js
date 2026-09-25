@@ -12,6 +12,7 @@ const {
 const { CheatMenuModel, NotificationTimeline, NOTICE, MENU, walkItems } = core;
 
 const overlaySource = fs.readFileSync(path.join(__dirname, "../issue-overlay.js"), "utf8");
+const appSource = fs.readFileSync(path.join(__dirname, "../app.js"), "utf8");
 const fixesSource = fs.readFileSync(path.join(__dirname, "../issue-fixes.js"), "utf8");
 const html = fs.readFileSync(path.join(__dirname, "../index.html"), "utf8");
 
@@ -296,11 +297,10 @@ test("notification overflow exits upward and is removed only after it is fully o
   assert.match(fixesSource, /this\.getY\(item, now\) \+ \(item\.noticeHeight \|\| NOTICE\.height\) > 0/);
 });
 
-test("menu row status markers use F then H and show inactive states in gray", () => {
-  assert.match(overlaySource, /drawBitmapText\(context, font, "F", menuX \+ 140/);
-  assert.match(overlaySource, /drawBitmapText\(context, font, "H", menuX \+ 147/);
-  assert.match(overlaySource, /MARKER_INACTIVE_COLOR = "#4c5550"/);
+test("menu row status markers use the historical lower H baseline without duplicate H", () => {
+  assert.match(overlaySource, /drawBitmapText\(context, font, "F", menuX \+ 140 \+ itemOffset, y \+ 8, FAVORITE_ACTIVE_COLOR\)/);
+  assert.match(appSource, /entry\.type !== "folder" && entry\.hotkey !== "なし"[\s\S]*drawBitmapText\(top, font, "H", menuX \+ 147 \+ itemOffset, y \+ 8, "#78a9ff"\)/);
+  assert.doesNotMatch(overlaySource, /drawBitmapText\(context, font, "H"/);
+  assert.doesNotMatch(overlaySource, /MARKER_INACTIVE_COLOR/);
   assert.match(overlaySource, /eraseLegacyFavoriteMarker/);
-  assert.match(overlaySource, /favoriteActive \? FAVORITE_ACTIVE_COLOR : MARKER_INACTIVE_COLOR/);
-  assert.match(overlaySource, /hotkeyActive \? HOTKEY_ACTIVE_COLOR : MARKER_INACTIVE_COLOR/);
 });
