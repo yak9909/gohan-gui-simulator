@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   patch:
-    if: contains(github.event.head_commit.message, 'Apply settings routing and status UI patch')
+    if: contains(github.event.head_commit.message, 'Finalize retention status feature')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,17 +27,18 @@ jobs:
           fi
           python scripts/finalize-retention-status-tests.py
           python scripts/fix-settings-a-routing.py
+          python scripts/fix-retention-test-target.py
       - name: Run focused tests
         run: |
           node --test test/issues.test.js
           node --test test/chat-kanji-preview.test.js
           node --test test/value-lock-visual.test.js
       - name: Remove temporary patch files
-        run: rm .github/workflows/temp-retention-status-ui.yml scripts/patch-retention-status-ui.py scripts/finalize-retention-status-tests.py scripts/fix-settings-a-routing.py patch-error.txt
+        run: rm .github/workflows/temp-retention-status-ui.yml scripts/patch-retention-status-ui.py scripts/finalize-retention-status-tests.py scripts/fix-settings-a-routing.py scripts/fix-retention-test-target.py patch-error.txt
       - name: Commit patch
         run: |
           git config user.name github-actions[bot]
-          git config user.email 41898282+yak9909@users.noreply.github.com
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add -A
           git commit -m "Revise retention indicators and menu hints"
           git push
