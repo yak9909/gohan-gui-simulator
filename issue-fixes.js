@@ -55,10 +55,11 @@
     if (!font?.glyphs) return;
     const glyphs = {
       // These are the original Misaki Gothic 2nd BDF 8px bitmaps. The base subset
-      // did not include the three kanji now used by the settings labels.
+      // did not include these kanji now used by settings/footer labels.
       20445: { character: "保", codepoint: 20445, width: 7, height: 7, offsetX: 0, offsetY: 0, advance: 8, rows: [60, 42, 59, 18, 126, 58, 86], source: "BDF-8px" },
       22266: { character: "固", codepoint: 22266, width: 7, height: 7, offsetX: 0, offsetY: 0, advance: 8, rows: [127, 73, 93, 73, 85, 93, 127], source: "BDF-8px" },
-      27671: { character: "気", codepoint: 27671, width: 7, height: 7, offsetX: 0, offsetY: 0, advance: 8, rows: [2, 126, 29, 62, 42, 36, 75], source: "BDF-8px" }
+      27671: { character: "気", codepoint: 27671, width: 7, height: 7, offsetX: 0, offsetY: 0, advance: 8, rows: [2, 126, 29, 62, 42, 36, 75], source: "BDF-8px" },
+      26143: { character: "星", codepoint: 26143, width: 7, height: 7, offsetX: 0, offsetY: 0, advance: 8, rows: [62, 34, 63, 40, 94, 8, 127], source: "BDF-8px" }
     };
     for (const [codepoint, glyph] of Object.entries(glyphs)) {
       if (!font.glyphs[codepoint]) font.glyphs[codepoint] = glyph;
