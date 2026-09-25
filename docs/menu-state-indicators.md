@@ -4,7 +4,7 @@ This file records the current Gohan Menu state-indicator and footer contracts so
 
 ## Row state indicators
 
-State markers use one 1px-wide, 12px-tall vertical line at `menuX + 4`, matching the historical `値を固定` side-marker position. When multiple states are active, that single line is split vertically into equal-height segments instead of adding more lines to the left.
+State markers use one 2px-wide, 12px-tall vertical line spanning `menuX + 3` through `menuX + 4`. The historical `値を固定` side-marker position at `menuX + 4` remains the right edge, so the added width extends only to the left. When multiple states are active, that single line is split vertically into equal-height segments.
 
 Segments are ordered from top to bottom as follows:
 
