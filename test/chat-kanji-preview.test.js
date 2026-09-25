@@ -82,6 +82,10 @@ test("candidate glyphs are compact and stay inside the strip below the input fie
   assert.equal(preview.CANDIDATE_BAR.y, 49);
   assert.equal(preview.CANDIDATE_BAR.textCellY, 48);
   assert.equal(preview.CANDIDATE_BAR.y + preview.CANDIDATE_BAR.height, 66);
+  assert.equal(preview.CHAT_LAYOUT.x, 8);
+  assert.equal(preview.CHAT_LAYOUT.width, 304);
+  assert.equal(preview.CANDIDATE_BAR.width + preview.CLEAR_BUTTON.width, preview.CHAT_LAYOUT.width);
+  assert.equal(preview.CLEAR_BUTTON.x + preview.CLEAR_BUTTON.width, preview.CHAT_LAYOUT.x + preview.CHAT_LAYOUT.width);
   assert.ok(pixels.some((pixel) => pixel.alpha > 0 && pixel.alpha < 1), "A4 alpha coverage should survive compact rendering");
 });
 
@@ -110,6 +114,36 @@ test("candidate list supports horizontal scrolling and selection-following", () 
   assert.ok(state.scrollX > 0, "selection should scroll the last candidate into view");
   preview.setCandidateIndex(state, 0, preview.DRAW_DATA);
   assert.equal(state.scrollX, 0, "selection should scroll back to the first candidate");
+});
+
+test("clear and one-character cursor controls share the chat input layout", () => {
+  assert.equal(preview.CURSOR_BUTTONS.left.width, preview.CHAT_LAYOUT.cursorButtonSize);
+  assert.equal(preview.CURSOR_BUTTONS.left.height, preview.CHAT_LAYOUT.cursorButtonSize);
+  assert.equal(preview.CURSOR_BUTTONS.right.width, preview.CHAT_LAYOUT.cursorButtonSize);
+  assert.ok(preview.CURSOR_BUTTONS.right.x > preview.CURSOR_BUTTONS.left.x);
+
+  const input = preview.createInputState("かんじ");
+  assert.equal(input.cursorIndex, 3);
+  preview.moveInputCursor(input, -1);
+  assert.equal(input.cursorIndex, 2, "left button moves exactly one character");
+  preview.moveInputCursor(input, 1);
+  assert.equal(input.cursorIndex, 3, "right button moves exactly one character");
+  preview.moveInputCursor(input, 99);
+  assert.equal(input.cursorIndex, 3, "cursor is clamped at the end");
+  preview.clearInput(input);
+  assert.equal(input.value, "");
+  assert.equal(input.cursorIndex, 0);
+  assert.equal(input.cleared, true);
+});
+
+test("conversion row is keyboard-width and reserves the right utility column for clear", () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "chat-kanji-preview.js"), "utf8");
+  assert.match(source, /fillRect\(CHAT_LAYOUT\.x, bar\.y, CHAT_LAYOUT\.width, bar\.height\)/);
+  assert.match(source, /strokeRect\(CHAT_LAYOUT\.x \+ 0\.5, CHAT_LAYOUT\.candidateY \+ 0\.5, CHAT_LAYOUT\.width - 1/);
+  assert.match(source, /const clearLabel = "クリア"/);
+  assert.match(source, /pointInside\(point, CLEAR_BUTTON\)/);
+  assert.match(source, /pointInside\(point, CURSOR_BUTTONS\.left\)/);
+  assert.match(source, /pointInside\(point, CURSOR_BUTTONS\.right\)/);
 });
 
 test("scaled BCFNT uses area-weighted coverage instead of max-pooling", () => {
