@@ -55,7 +55,7 @@ text = replace_once(text, '''  assert.deepEqual(all[linked.favoriteKey], { type:
   assert.equal(findItem(restored, "天候").appliedValue, 2);
   assert.equal(findItem(restored, "所持ベル").appliedValue, 4200);
   const restoredLinked = findItem(restored, "連動型数値");
-  assert.equal(restoredLinked.fixed, false, "applied-state retention does not implicitly retain value locks");
+  assert.equal(Boolean(restoredLinked.fixed), false, "applied-state retention does not implicitly retain value locks");
   restored.restoreValueLockStateSnapshot(menu.valueLockStateSnapshot());
   assert.equal(restoredLinked.fixed, true);
   assert.equal(restoredLinked.fixedValue, 1777);
@@ -77,7 +77,8 @@ text = replace_once(text, '''  frame.selection = 2;
   assert.equal(menu.persistenceSettingsSnapshot().keepEnabledFavorites, true);''', '''  frame.selection = 2;
   assert.equal(menu.selectedItem().label, "この項目を保持");
   menu.handle("a", 110, true, false);
-  assert.equal(menu.isItemRetained(menu.settingsTarget), true);
+  assert.equal(menu.selectedItem().value, true);
+  assert.equal(menu.isItemRetained(menu.selectedItem().settingsTarget), true);
 
   frame.selection = 3;
   menu.handle("a", 120, true, false);
