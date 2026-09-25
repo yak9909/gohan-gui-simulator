@@ -16,8 +16,8 @@ test("row values reserve right-side F/H columns", () => {
 });
 
 test("folders draw only F while normal entries draw F then H", () => {
-  assert.match(source, /drawBitmapText\(context, font, "F", menuX \+ FAVORITE_X/);
-  assert.match(source, /if \(entry\.type !== "folder"\) \{\s*drawBitmapText\(context, font, "H", menuX \+ HOTKEY_X/s);
+  assert.match(source, /drawBitmapText\(context, font, "F", menuX \+ 140/);
+  assert.match(source, /if \(entry\.type !== "folder"\) \{\s*drawBitmapText\(context, font, "H", menuX \+ 147/s);
   assert.match(source, /favoriteActive \? FAVORITE_ACTIVE_COLOR : MARKER_INACTIVE_COLOR/);
   assert.match(source, /hotkeyActive \? HOTKEY_ACTIVE_COLOR : MARKER_INACTIVE_COLOR/);
 });
