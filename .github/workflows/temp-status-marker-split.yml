@@ -9,117 +9,18 @@ permissions:
 
 jobs:
   patch:
-    if: contains(github.event.head_commit.message, 'Stage vertically split status markers')
+    if: contains(github.event.head_commit.message, 'Run vertical status marker patch')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Apply marker layout patch
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          def replace_once(path, old, new):
-              p = Path(path)
-              text = p.read_text(encoding="utf-8")
-              count = text.count(old)
-              if count != 1:
-                  raise SystemExit(f"{path}: expected exactly one marker, found {count}")
-              p.write_text(text.replace(old, new, 1), encoding="utf-8")
-
-          replace_once(
-              "app.js",
-              '''      // Compact status indicators use 1px vertical lines beside the row. The first
-      // active state stays closest to the item and subsequent states stack leftward.
-      // 値を固定 is intentionally not represented here; its value color is sufficient.
-      const statusColors = [];
-      if (menu.isItemRetained?.(entry)) statusColors.push("#63e4a4");
-      if (menu.isFavorite(entry)) statusColors.push("#d6c98a");
-      if (entry.type !== "folder" && entry.hotkey !== "なし") statusColors.push("#78a9ff");
-      statusColors.forEach((statusColor, statusIndex) => {
-        top.fillStyle = statusColor;
-        top.fillRect(menuX + 6 - statusIndex + itemOffset, y - 2, 1, 12);
-      });''',
-              '''      // Row states share the historical VALUE LOCK marker position. Multiple active
-      // states split the same 1px x 12px line vertically instead of spreading left.
-      // CTRPF移植時も statusColors の順番を上→下の表示順として扱い、12pxを等分する。
-      const statusColors = [];
-      if (menu.isFavorite(entry)) statusColors.push("#d6c98a");
-      if (entry.type !== "folder" && entry.hotkey !== "なし") statusColors.push("#78a9ff");
-      if (menu.isItemRetained?.(entry)) statusColors.push("#63e4a4");
-      const statusHeight = 12;
-      statusColors.forEach((statusColor, statusIndex) => {
-        const segmentTop = Math.floor(statusHeight * statusIndex / statusColors.length);
-        const segmentBottom = Math.floor(statusHeight * (statusIndex + 1) / statusColors.length);
-        top.fillStyle = statusColor;
-        top.fillRect(menuX + 4 + itemOffset, y - 2 + segmentTop, 1, segmentBottom - segmentTop);
-      });'''
-          )
-
-          replace_once(
-              "test/menu-status-layout.test.js",
-              '''test("row states use left-stacked one-pixel indicators instead of F H glyphs", () => {
-  assert.match(appSource, /menu\\.isItemRetained\\?\\.\\(entry\\).*statusColors\\.push\\("#63e4a4"\\)/s);
-  assert.match(appSource, /menu\\.isFavorite\\(entry\\).*statusColors\\.push\\("#d6c98a"\\)/s);
-  assert.match(appSource, /entry\\.type !== "folder" && entry\\.hotkey !== "なし".*statusColors\\.push\\("#78a9ff"\\)/s);
-  assert.match(appSource, /fillRect\\(menuX \\+ 6 - statusIndex \\+ itemOffset, y - 2, 1, 12\\)/);
-  assert.doesNotMatch(appSource, /drawBitmapText\\(top, font, "F"/);
-  assert.doesNotMatch(appSource, /drawBitmapText\\(top, font, "H"/);
-  assert.doesNotMatch(overlaySource, /FAVORITE_ACTIVE_COLOR|eraseLegacyFavoriteMarker|drawFavoriteMarkers/);
-});
-
-test("partially visible eleventh row clips status lines with the normal menu item clip", () => {
-  assert.match(appSource, /top\\.rect\\(menuX \\+ 2, 24, MENU\\.width - 6, 188\\); top\\.clip\\(\\)/);
-  assert.match(appSource, /fillRect\\(menuX \\+ 6 - statusIndex \\+ itemOffset, y - 2, 1, 12\\)/);
-  assert.doesNotMatch(appSource, /Math\\.min\\(y/);
-});''',
-              '''test("row states share the historical value-lock x position and split vertically", () => {
-  assert.match(appSource, /menu\\.isFavorite\\(entry\\).*statusColors\\.push\\("#d6c98a"\\)/s);
-  assert.match(appSource, /entry\\.type !== "folder" && entry\\.hotkey !== "なし".*statusColors\\.push\\("#78a9ff"\\)/s);
-  assert.match(appSource, /menu\\.isItemRetained\\?\\.\\(entry\\).*statusColors\\.push\\("#63e4a4"\\)/s);
-  assert.match(appSource, /const statusHeight = 12/);
-  assert.match(appSource, /segmentTop = Math\\.floor\\(statusHeight \\* statusIndex \\/ statusColors\\.length\\)/);
-  assert.match(appSource, /segmentBottom = Math\\.floor\\(statusHeight \\* \\(statusIndex \\+ 1\\) \\/ statusColors\\.length\\)/);
-  assert.match(appSource, /fillRect\\(menuX \\+ 4 \\+ itemOffset, y - 2 \\+ segmentTop, 1, segmentBottom - segmentTop\\)/);
-  assert.doesNotMatch(appSource, /menuX \\+ 6 - statusIndex/);
-  assert.doesNotMatch(appSource, /drawBitmapText\\(top, font, "F"/);
-  assert.doesNotMatch(appSource, /drawBitmapText\\(top, font, "H"/);
-  assert.doesNotMatch(overlaySource, /FAVORITE_ACTIVE_COLOR|eraseLegacyFavoriteMarker|drawFavoriteMarkers/);
-});
-
-test("partially visible eleventh row clips status lines with the normal menu item clip", () => {
-  assert.match(appSource, /top\\.rect\\(menuX \\+ 2, 24, MENU\\.width - 6, 188\\); top\\.clip\\(\\)/);
-  assert.match(appSource, /fillRect\\(menuX \\+ 4 \\+ itemOffset, y - 2 \\+ segmentTop, 1, segmentBottom - segmentTop\\)/);
-  assert.doesNotMatch(appSource, /Math\\.min\\(y/);
-});'''
-          )
-
-          replace_once(
-              "docs/menu-state-indicators.md",
-              '''State markers are 1px vertical lines at the left edge of each menu row. Active markers are appended in this order and each additional marker stacks one pixel farther left:
-
-1. `この項目を保持`: menu accent `#63e4a4`
-2. お気に入り: yellow `#d6c98a`
-3. ホットキー: blue `#78a9ff`
-
-Inactive states draw nothing. `値を固定` does not add a vertical line; a fixed value is indicated by its cyan value text only. The marker geometry is rendered inside the same menu-item clip as labels and values, including the partially visible eleventh row.''',
-              '''State markers use one 1px-wide, 12px-tall vertical line at `menuX + 4`, matching the historical `値を固定` side-marker position. When multiple states are active, that single line is split vertically into equal-height segments instead of adding more lines to the left.
-
-Segments are ordered from top to bottom as follows:
-
-1. お気に入り: yellow `#d6c98a`
-2. ホットキー: blue `#78a9ff`
-3. `この項目を保持`: menu accent `#63e4a4`
-
-For example, お気に入り + ホットキー uses yellow/blue at 1:1, and お気に入り + ホットキー + `この項目を保持` uses yellow/blue/accent at 1:1:1. Inactive states draw nothing. `値を固定` does not add a vertical line; a fixed value is indicated by its cyan value text only. The marker geometry is rendered inside the same menu-item clip as labels and values, including the partially visible eleventh row.'''
-          )
-          PY
+        run: python tools/temp-status-marker-split.py
       - name: Run tests
         run: npm test
-      - name: Remove temporary workflow
-        run: rm .github/workflows/temp-status-marker-split.yml
+      - name: Remove temporary files
+        run: rm .github/workflows/temp-status-marker-split.yml tools/temp-status-marker-split.py
       - name: Commit patch
         run: |
           git config user.name github-actions[bot]
