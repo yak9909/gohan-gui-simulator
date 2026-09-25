@@ -59,6 +59,15 @@ test("preview uses the supplied ACNL screenshot and Garden BCFNT subset", () => 
   assert.equal(preview.EXTRA_GLYPHS["カ"].rows[8], "4fffffffffffa0000");
   assert.equal(preview.EXTRA_GLYPHS["ン"].rows[7], "3dff8100000020000");
   assert.equal(preview.EXTRA_GLYPHS["ジ"].rows[10], "7fff91000003f6000");
+
+  // Control glyphs were re-extracted from the user-supplied Garden_msg_size16.bcfnt
+  // (SHA-256 1e24ed83...aff78), using the same low-nibble-first A4 decoding.
+  assert.equal(data.source.fontSha256, "1e24ed83bdf652dde77ab9e0065914518f9997a2916b66ad764bfc5ae57aff78");
+  assert.equal(preview.EXTRA_GLYPHS["ク"].rows[8], "0009fd3333aff0000");
+  assert.equal(preview.EXTRA_GLYPHS["リ"].rows[13], "9f500009fb0000000");
+  assert.equal(preview.EXTRA_GLYPHS["ア"].rows[6], "7ffffffffffff8000");
+  assert.equal(preview.EXTRA_GLYPHS["←"].rows[11], "afffffffffffffa00");
+  assert.equal(preview.EXTRA_GLYPHS["→"].rows[11], "afffffffffffffa00");
 });
 
 test("candidate glyphs are compact and stay inside the strip below the input field", () => {
@@ -82,9 +91,15 @@ test("candidate glyphs are compact and stay inside the strip below the input fie
   assert.ok(pixels.every((pixel) => pixel.y >= preview.CANDIDATE_BAR.y && pixel.y < preview.CANDIDATE_BAR.y + preview.CANDIDATE_BAR.height));
   assert.equal(preview.CANDIDATE_BAR.y, 49);
   assert.equal(preview.CANDIDATE_BAR.textCellY, 48);
-  assert.equal(preview.CANDIDATE_BAR.y + preview.CANDIDATE_BAR.height, 66);
-  assert.equal(preview.CHAT_LAYOUT.x, 8);
-  assert.equal(preview.CHAT_LAYOUT.width, 304);
+  assert.equal(preview.CANDIDATE_BAR.y + preview.CANDIDATE_BAR.height, 68);
+  assert.equal(preview.CHAT_LAYOUT.keyboardTopY, 66);
+  assert.equal(preview.CHAT_LAYOUT.keyboardContentY, 68);
+  assert.equal(preview.CHAT_LAYOUT.x, 1);
+  assert.equal(preview.CHAT_LAYOUT.width, 318);
+  assert.equal(preview.CANDIDATE_BAR.x, 1);
+  assert.equal(preview.CANDIDATE_BAR.width, 278);
+  assert.equal(preview.CLEAR_BUTTON.x, 279);
+  assert.equal(preview.CLEAR_BUTTON.width, 40);
   assert.equal(preview.CANDIDATE_BAR.width + preview.CLEAR_BUTTON.width, preview.CHAT_LAYOUT.width);
   assert.equal(preview.CLEAR_BUTTON.x + preview.CLEAR_BUTTON.width, preview.CHAT_LAYOUT.x + preview.CHAT_LAYOUT.width);
   assert.ok(pixels.some((pixel) => pixel.alpha > 0 && pixel.alpha < 1), "A4 alpha coverage should survive compact rendering");
@@ -117,34 +132,50 @@ test("candidate list supports horizontal scrolling and selection-following", () 
   assert.equal(state.scrollX, 0, "selection should scroll back to the first candidate");
 });
 
-test("clear and one-character cursor controls share the chat input layout", () => {
-  assert.equal(preview.CURSOR_BUTTONS.left.width, preview.CHAT_LAYOUT.cursorButtonSize);
-  assert.equal(preview.CURSOR_BUTTONS.left.height, preview.CHAT_LAYOUT.cursorButtonSize);
-  assert.equal(preview.CURSOR_BUTTONS.right.width, preview.CHAT_LAYOUT.cursorButtonSize);
-  assert.ok(preview.CURSOR_BUTTONS.right.x > preview.CURSOR_BUTTONS.left.x);
+test("clear and cursor controls follow measured source-image geometry without replacing the input field", () => {
+  assert.equal(preview.CHAT_LAYOUT.deleteColumnX, 279);
+  assert.equal(preview.CHAT_LAYOUT.deleteColumnWidth, 40);
+  assert.equal(preview.CLEAR_BUTTON.x, 279, "clear key begins on the same vertical separator as 消去");
+  assert.equal(preview.CLEAR_BUTTON.width, 40, "clear key uses the full 消去 column width");
+  assert.equal(preview.CLEAR_BUTTON.y + preview.CLEAR_BUTTON.height, preview.CHAT_LAYOUT.keyboardContentY);
+  assert.ok(preview.CLEAR_BUTTON.y < preview.CHAT_LAYOUT.keyboardTopY,
+    "conversion row starts in the gap below the existing input field");
+  assert.ok(preview.CLEAR_BUTTON.y + preview.CLEAR_BUTTON.height > preview.CHAT_LAYOUT.keyboardTopY,
+    "conversion row intentionally covers the source keyboard's rounded top edge");
 
-  const input = preview.createInputState("かんじ");
-  assert.equal(input.cursorIndex, 3);
-  preview.moveInputCursor(input, -1);
-  assert.equal(input.cursorIndex, 2, "left button moves exactly one character");
-  preview.moveInputCursor(input, 1);
-  assert.equal(input.cursorIndex, 3, "right button moves exactly one character");
-  preview.moveInputCursor(input, 99);
-  assert.equal(input.cursorIndex, 3, "cursor is clamped at the end");
-  preview.clearInput(input);
-  assert.equal(input.value, "");
-  assert.equal(input.cursorIndex, 0);
-  assert.equal(input.cleared, true);
+  assert.equal(preview.CHAT_LAYOUT.kanaKeyWidth, 24);
+  assert.equal(preview.CHAT_LAYOUT.kanaKeyHeight, 22);
+  assert.equal(preview.CURSOR_BUTTONS.left.width, 24);
+  assert.equal(preview.CURSOR_BUTTONS.left.height, 22);
+  assert.equal(preview.CURSOR_BUTTONS.right.width, 24);
+  assert.equal(preview.CURSOR_BUTTONS.right.height, 22);
+  assert.equal(preview.CURSOR_BUTTONS.left.x, 271);
+  assert.equal(preview.CURSOR_BUTTONS.right.x, 295);
+  assert.equal(preview.CURSOR_BUTTONS.right.x + preview.CURSOR_BUTTONS.right.width, 319);
+  assert.equal(preview.CURSOR_BUTTONS.left.y + preview.CURSOR_BUTTONS.left.height, preview.CHAT_LAYOUT.inputTopY,
+    "top-right cursor keys must stop before the existing input field begins");
+
+  const controls = preview.createControlState();
+  assert.deepEqual(controls, { pressed: null });
 });
 
-test("conversion row is keyboard-width and reserves the right utility column for clear", () => {
+test("conversion row shares the keyboard edge and keeps the original input field untouched", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "chat-kanji-preview.js"), "utf8");
   assert.match(source, /fillRect\(CHAT_LAYOUT\.x, bar\.y, CHAT_LAYOUT\.width, bar\.height\)/);
-  assert.match(source, /strokeRect\(CHAT_LAYOUT\.x \+ 0\.5, CHAT_LAYOUT\.candidateY \+ 0\.5, CHAT_LAYOUT\.width - 1/);
+  assert.match(source, /CLEAR_BUTTON\.x, CLEAR_BUTTON\.y, 1, CLEAR_BUTTON\.height/);
+  assert.match(source, /CHAT_LAYOUT\.candidateY \+ CHAT_LAYOUT\.candidateHeight - 1/);
   assert.match(source, /const clearLabel = "クリア"/);
+  assert.match(source, /drawBcfntText\([\s\S]*clearLabel/);
+  assert.match(source, /drawGohanControlButton\(context, CURSOR_BUTTONS\.left, "←"/);
+  assert.match(source, /drawGohanControlButton\(context, CURSOR_BUTTONS\.right, "→"/);
   assert.match(source, /pointInside\(point, CLEAR_BUTTON\)/);
   assert.match(source, /pointInside\(point, CURSOR_BUTTONS\.left\)/);
   assert.match(source, /pointInside\(point, CURSOR_BUTTONS\.right\)/);
+
+  assert.doesNotMatch(source, /INPUT_TEXT_AREA|INPUT_PREVIEW_TEXT|createInputState|moveInputCursor|clearInput|caret/i,
+    "the baked ACNL input field must not be replaced or reconstructed by the preview");
+  assert.doesNotMatch(source, /MISAKI_GOTHIC_2ND_8/,
+    "preview controls must use Garden_msg_size16.bcfnt glyphs, not the menu bitmap font");
 });
 
 test("scaled BCFNT uses area-weighted coverage instead of max-pooling", () => {

@@ -6,42 +6,55 @@
     : root.ACNL_CHAT_KANJI_PREVIEW_DATA;
   if (!data) return;
 
-  // The conversion row and the kana keyboard share one 304px-wide body.
-  // The new clear key occupies the same right-side utility-key column as 消去;
-  // the candidate viewport gives up exactly that width instead of overlapping it.
+  // Measured directly from the embedded 320x240 ACNL lower-screen reference:
+  // keyboard outer pixels x=1..318, rounded keyboard top edge y=66..67,
+  // 消去 column x=279..318, kana-key pitch 24x22, and the existing input field begins at y=23.
+  // The conversion row covers that old rounded top edge and replaces it with one
+  // straight shared divider at y=67, so it reads as an actual extra keyboard row.
   const CHAT_LAYOUT = Object.freeze({
-    x: 8, width: 304,
-    candidateY: 49, candidateHeight: 17,
-    clearWidth: 44,
-    cursorButtonSize: 17, cursorButtonGap: 2, cursorButtonY: 10
+    x: 1, width: 318,
+    candidateY: 49, candidateHeight: 19,
+    keyboardTopY: 66, keyboardContentY: 68,
+    deleteColumnX: 279, deleteColumnWidth: 40,
+    kanaKeyWidth: 24, kanaKeyHeight: 22,
+    cursorButtonY: 1, inputTopY: 23
   });
   const CLEAR_BUTTON = Object.freeze({
-    x: CHAT_LAYOUT.x + CHAT_LAYOUT.width - CHAT_LAYOUT.clearWidth,
+    x: CHAT_LAYOUT.deleteColumnX,
     y: CHAT_LAYOUT.candidateY,
-    width: CHAT_LAYOUT.clearWidth,
+    width: CHAT_LAYOUT.deleteColumnWidth,
     height: CHAT_LAYOUT.candidateHeight
   });
   const CANDIDATE_BAR = Object.freeze({
-    x: CHAT_LAYOUT.x, y: CHAT_LAYOUT.candidateY,
-    width: CHAT_LAYOUT.width - CHAT_LAYOUT.clearWidth, height: CHAT_LAYOUT.candidateHeight,
+    x: CHAT_LAYOUT.x,
+    y: CHAT_LAYOUT.candidateY,
+    width: CHAT_LAYOUT.deleteColumnX - CHAT_LAYOUT.x,
+    height: CHAT_LAYOUT.candidateHeight,
     gap: 2, paddingX: 4, textCellY: 48, textScale: 0.72
   });
   const CURSOR_BUTTONS = Object.freeze({
     left: Object.freeze({
-      x: CHAT_LAYOUT.x + CHAT_LAYOUT.width - CHAT_LAYOUT.cursorButtonSize * 2 - CHAT_LAYOUT.cursorButtonGap,
+      x: CHAT_LAYOUT.x + CHAT_LAYOUT.width - CHAT_LAYOUT.kanaKeyWidth * 2,
       y: CHAT_LAYOUT.cursorButtonY,
-      width: CHAT_LAYOUT.cursorButtonSize,
-      height: CHAT_LAYOUT.cursorButtonSize
+      width: CHAT_LAYOUT.kanaKeyWidth,
+      height: CHAT_LAYOUT.kanaKeyHeight
     }),
     right: Object.freeze({
-      x: CHAT_LAYOUT.x + CHAT_LAYOUT.width - CHAT_LAYOUT.cursorButtonSize,
+      x: CHAT_LAYOUT.x + CHAT_LAYOUT.width - CHAT_LAYOUT.kanaKeyWidth,
       y: CHAT_LAYOUT.cursorButtonY,
-      width: CHAT_LAYOUT.cursorButtonSize,
-      height: CHAT_LAYOUT.cursorButtonSize
+      width: CHAT_LAYOUT.kanaKeyWidth,
+      height: CHAT_LAYOUT.kanaKeyHeight
     })
   });
-  const INPUT_TEXT_AREA = Object.freeze({ x: 14, y: 10, width: 254, height: 31, textX: 18, caretY: 16, caretHeight: 18, advance: 16 });
-  const INPUT_PREVIEW_TEXT = "かんじ";
+  const CONTROL_COLORS = Object.freeze({
+    fill: "rgba(28, 35, 30, .76)",
+    pressedFill: "rgba(49, 88, 68, .82)",
+    border: "#3a453d",
+    pressedBorder: "#63e4a4",
+    text: "#b7c1b9",
+    pressedText: "#ffffff",
+    rowEdge: "#3a1d0c"
+  });
   const CANDIDATE_COLORS = Object.freeze({
   // The supplied ACNL screenshot uses this dark brown on utility keys such as delete/space.
   panel: "#522810",
@@ -61,7 +74,12 @@
     "ん":{"left":0,"glyphWidth":15,"charWidth":16,"rows":["00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000480000000000","00000ef4000000000","00006fd0000000000","0000df60000000000","0004fe00000000000","000af700000000000","001ff000000000000","008fa9ec000007600","00effcef60000e900","05ff906f70002f600","0bfc005f90008f200","1ff4004fb003fb000","6fd0001ff87ff2000","9f700008fffe40000","03000000475000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000"]},
     "カ":{"left":1,"glyphWidth":14,"charWidth":16,"rows":["00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","000006d4000000000","00000bf8000000000","00000bf7000000000","4fffffffffffa0000","05555ff9556ef6000","00001ff2000bf7000","00004ff0000bf7000","00008fa0000df6000","0000ef40000ef5000","0006fc00001ff2000","001ef300005ff0000","00cf600000cfa0000","2df603fdbeff20000","ec30004aefd400000","10000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000"]},
     "ン":{"left":1,"glyphWidth":14,"charWidth":16,"rows":["00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","8c710000000000000","3dff8100000020000","00bffe000001f5000","0009ff000007f2000","00005300000ec0000","00000000009f50000","0000000005fd00000","000000006ff300000","0000001aff5000000","00004afff50000000","1adffffc200000000","5ffffb40000000000","06740000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000"]},
-    "ジ":{"left":0,"glyphWidth":15,"charWidth":16,"rows":["00000000000000000","00000000000000000","00000000000000000","00000000000000000","000000000690e6000","0063000005e49e300","01dffa3000ce1eb00","0007fff1003e16700","00001bc000006c000","584000000000db000","7fff91000003f6000","01affa00000cf0000","0005b400008f80000","0000000007fd00000","00000001aff200000","0000039ffe3000000","04acffffb10000000","0cffffa3000000000","02763000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000"]}
+    "ジ":{"left":0,"glyphWidth":15,"charWidth":16,"rows":["00000000000000000","00000000000000000","00000000000000000","00000000000000000","000000000690e6000","0063000005e49e300","01dffa3000ce1eb00","0007fff1003e16700","00001bc000006c000","584000000000db000","7fff91000003f6000","01affa00000cf0000","0005b400008f80000","0000000007fd00000","00000001aff200000","0000039ffe3000000","04acffffb10000000","0cffffa3000000000","02763000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000"]},
+    "ク":{"left":1,"glyphWidth":13,"charWidth":16,"rows":["00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00001dc0000000000","00007fe0000000000","0000efffffff80000","0009fd3333aff0000","005ff20000bfc0000","03ff300001ff70000","3fe3000009fe00000","ec2000002ff700000","10000000dfc000000","0000000cfe1000000","000002dfd20000000","00018ffa100000000","06affc40000000000","2db72000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000"]},
+    "リ":{"left":3,"glyphWidth":10,"charWidth":16,"rows":["00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","15000000420000000","af600002fe0000000","bf700003ff0000000","bf700003ff0000000","bf700003ff0000000","bf700003ff0000000","bf700003ff0000000","bf700006fe0000000","9f500009fb0000000","0000001ef60000000","000000bfd00000000","00003cfe200000000","058dffa1000000000","4fda6100000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000"]},
+    "ア":{"left":1,"glyphWidth":14,"charWidth":16,"rows":["00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","7ffffffffffff8000","15555555555cff000","00000591000cfc000","00000df7003ff4000","00000df700cfa0000","00000ef60cfc00000","00000ff4df8000000","00004ff0210000000","0000afa0000000000","0003ff20000000000","003ef600000000000","08fe5000000000000","5f810000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000"]},
+    "←":{"left":0,"glyphWidth":15,"charWidth":16,"rows":["00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00056000000000000","009f6000000000000","1bf60000000000000","afffffffffffffa00","5ff97777777777400","04ed1000000000000","002da000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000"]},
+    "→":{"left":0,"glyphWidth":15,"charWidth":16,"rows":["00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000006500000","00000000006f90000","000000000006fb100","afffffffffffffa00","477777777779ff500","00000000001de4000","0000000000ad20000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000","00000000000000000"]}
   });
 
   const PREVIEW_CANDIDATES = Object.freeze([
@@ -178,23 +196,8 @@ context.globalAlpha = baseAlpha;
     return { selectedIndex: 0, scrollX: 0, dragging: false, dragStartX: 0, dragStartScrollX: 0, dragMoved: false };
   }
 
-  function createInputState(value = INPUT_PREVIEW_TEXT) {
-    const normalized = Array.from(String(value)).join("");
-    return { value: normalized, cursorIndex: Array.from(normalized).length, cleared: false };
-  }
-
-  function moveInputCursor(state, delta) {
-    const length = Array.from(String(state?.value ?? "")).length;
-    const current = Math.max(0, Math.min(length, Number(state?.cursorIndex) || 0));
-    state.cursorIndex = Math.max(0, Math.min(length, current + Math.sign(Number(delta) || 0)));
-    return state.cursorIndex;
-  }
-
-  function clearInput(state) {
-    state.value = "";
-    state.cursorIndex = 0;
-    state.cleared = true;
-    return state.value;
+  function createControlState() {
+    return { pressed: null };
   }
 
   function maximumCandidateScroll(fontData = DRAW_DATA) {
@@ -278,106 +281,102 @@ context.globalAlpha = baseAlpha;
     }
   }
 
-  function measureUiText(font, text) {
-    let width = 0;
-    for (const character of Array.from(String(text))) {
-      const glyph = font?.glyphs?.[String(character.codePointAt(0))];
-      width += glyph ? glyph.advance : 4;
-    }
-    return width;
-  }
-
-  function drawUiText(context, font, text, x, y, color) {
-    if (!font?.glyphs) return x;
-    let cursor = Math.round(x);
-    context.fillStyle = color;
-    for (const character of Array.from(String(text))) {
-      const glyph = font.glyphs[String(character.codePointAt(0))];
-      if (!glyph) { cursor += 4; continue; }
-      for (let row = 0; row < glyph.height; row++) {
-        const bits = glyph.rows[row];
-        for (let column = 0; column < glyph.width; column++) {
-          if (bits & (1 << column)) context.fillRect(cursor + glyph.offsetX + column, Math.round(y) + glyph.offsetY + row, 1, 1);
-        }
-      }
-      cursor += glyph.advance;
-    }
-    return cursor;
-  }
-
   function pointInside(point, rectangle) {
-    return point.x >= rectangle.x && point.x < rectangle.x + rectangle.width && point.y >= rectangle.y && point.y < rectangle.y + rectangle.height;
+    return point.x >= rectangle.x && point.x < rectangle.x + rectangle.width
+      && point.y >= rectangle.y && point.y < rectangle.y + rectangle.height;
   }
 
-  function drawArrowIcon(context, rectangle, direction, active) {
-    const cy = Math.round(rectangle.y + rectangle.height / 2);
-    const cx = Math.round(rectangle.x + rectangle.width / 2);
-    context.fillStyle = active ? CANDIDATE_COLORS.text : "rgba(255, 243, 214, 0.30)";
-    if (direction < 0) {
-      context.fillRect(cx - 4, cy, 8, 1);
-      context.fillRect(cx - 4, cy - 1, 1, 3);
-      context.fillRect(cx - 3, cy - 2, 1, 5);
-    } else {
-      context.fillRect(cx - 3, cy, 8, 1);
-      context.fillRect(cx + 4, cy - 1, 1, 3);
-      context.fillRect(cx + 3, cy - 2, 1, 5);
-    }
+  function roundedRectPath(context, x, y, width, height, radius) {
+    const r = Math.max(0, Math.min(radius, width / 2, height / 2));
+    context.beginPath();
+    context.moveTo(x + r, y);
+    context.lineTo(x + width - r, y);
+    context.quadraticCurveTo(x + width, y, x + width, y + r);
+    context.lineTo(x + width, y + height - r);
+    context.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+    context.lineTo(x + r, y + height);
+    context.quadraticCurveTo(x, y + height, x, y + height - r);
+    context.lineTo(x, y + r);
+    context.quadraticCurveTo(x, y, x + r, y);
+    context.closePath();
   }
 
-  function drawControlButton(context, rectangle, active = true) {
-    context.fillStyle = CANDIDATE_COLORS.panel;
-    context.fillRect(rectangle.x, rectangle.y, rectangle.width, rectangle.height);
-    context.strokeStyle = active ? "rgba(255, 243, 214, 0.38)" : "rgba(255, 243, 214, 0.18)";
-    context.strokeRect(rectangle.x + 0.5, rectangle.y + 0.5, rectangle.width - 1, rectangle.height - 1);
-  }
+  function drawGohanControlButton(context, rectangle, label, pressed, fontData = DRAW_DATA) {
+    roundedRectPath(context, rectangle.x + 0.5, rectangle.y + 0.5, rectangle.width - 1, rectangle.height - 1, 3);
+    context.fillStyle = pressed ? CONTROL_COLORS.pressedFill : CONTROL_COLORS.fill;
+    context.fill();
+    context.strokeStyle = pressed ? CONTROL_COLORS.pressedBorder : CONTROL_COLORS.border;
+    context.stroke();
 
-  function drawPreviewControls(context, inputState, uiFont = root.MISAKI_GOTHIC_2ND_8) {
-    const state = inputState || createInputState();
-    const length = Array.from(String(state.value ?? "")).length;
-    state.cursorIndex = Math.max(0, Math.min(length, Number(state.cursorIndex) || 0));
-
-    // One outer edge joins the candidates and clear key into the keyboard width.
-    context.strokeStyle = CANDIDATE_COLORS.border;
-    context.strokeRect(CHAT_LAYOUT.x + 0.5, CHAT_LAYOUT.candidateY + 0.5, CHAT_LAYOUT.width - 1, CHAT_LAYOUT.candidateHeight - 1);
-    context.fillStyle = CANDIDATE_COLORS.scrollHint;
-    context.fillRect(CLEAR_BUTTON.x, CLEAR_BUTTON.y + 2, 1, CLEAR_BUTTON.height - 4);
-
-    context.fillStyle = CANDIDATE_COLORS.panel;
-    context.fillRect(CLEAR_BUTTON.x + 1, CLEAR_BUTTON.y + 1, CLEAR_BUTTON.width - 2, CLEAR_BUTTON.height - 2);
-    const clearLabel = "クリア";
-    const clearWidth = measureUiText(uiFont, clearLabel);
-    drawUiText(context, uiFont, clearLabel, CLEAR_BUTTON.x + Math.floor((CLEAR_BUTTON.width - clearWidth) / 2), CLEAR_BUTTON.y + 5, CANDIDATE_COLORS.text);
-
-    const leftActive = state.cursorIndex > 0;
-    const rightActive = state.cursorIndex < length;
-    drawControlButton(context, CURSOR_BUTTONS.left, leftActive);
-    drawControlButton(context, CURSOR_BUTTONS.right, rightActive);
-    drawArrowIcon(context, CURSOR_BUTTONS.left, -1, leftActive);
-    drawArrowIcon(context, CURSOR_BUTTONS.right, 1, rightActive);
-
-    // The source capture contains the sample input. A clear action masks that
-    // sample, while the caret is kept as a small overlay so one-character cursor
-    // movement is visible without replacing the supplied ACNL keyboard artwork.
-    if (state.cleared) {
-      context.fillStyle = "rgba(255, 247, 214, 0.98)";
-      context.fillRect(INPUT_TEXT_AREA.x, INPUT_TEXT_AREA.y, INPUT_TEXT_AREA.width, INPUT_TEXT_AREA.height);
-    }
-    const caretX = Math.min(
-      INPUT_TEXT_AREA.x + INPUT_TEXT_AREA.width - 1,
-      INPUT_TEXT_AREA.textX + state.cursorIndex * INPUT_TEXT_AREA.advance
+    const textWidth = measureBcfntText(label, fontData, 1);
+    const textX = rectangle.x + Math.floor((rectangle.width - textWidth) / 2);
+    // Garden_msg_size16 has a 24px cell; its arrow ink sits around rows 8..14.
+    // Starting the 24px BCFNT cell one pixel above the button centers that ink in the measured 22px key height.
+    drawBcfntText(
+      context,
+      label,
+      textX,
+      rectangle.y - 1,
+      pressed ? CONTROL_COLORS.pressedText : CONTROL_COLORS.text,
+      fontData,
+      1
     );
-    context.fillStyle = CANDIDATE_COLORS.border;
-    context.fillRect(caretX, INPUT_TEXT_AREA.caretY, 1, INPUT_TEXT_AREA.caretHeight);
   }
 
-  function drawPreview(context, sourceImage, stateOrIndex = 0, fontData = DRAW_DATA, inputState = null) {
+  function drawPreviewControls(context, controlState = null, fontData = DRAW_DATA) {
+    const state = controlState || createControlState();
+    const bar = CANDIDATE_BAR;
+
+    // Continue the measured keyboard side edges upward. The source image's
+    // rounded top edge at y=66..67 is covered by the row fill; y=67 becomes one
+    // straight shared divider before the first source key pixels at y=68.
+    context.fillStyle = CONTROL_COLORS.rowEdge;
+    context.fillRect(CHAT_LAYOUT.x, CHAT_LAYOUT.candidateY, CHAT_LAYOUT.width, 1);
+    context.fillRect(CHAT_LAYOUT.x, CHAT_LAYOUT.candidateY, 1, CHAT_LAYOUT.candidateHeight);
+    context.fillRect(
+      CHAT_LAYOUT.x + CHAT_LAYOUT.width - 1,
+      CHAT_LAYOUT.candidateY,
+      1,
+      CHAT_LAYOUT.candidateHeight
+    );
+    context.fillRect(
+      CHAT_LAYOUT.x,
+      CHAT_LAYOUT.candidateY + CHAT_LAYOUT.candidateHeight - 1,
+      CHAT_LAYOUT.width,
+      1
+    );
+
+    // The split is exactly the x=279 separator above the source image's 消去 key.
+    context.fillRect(CLEAR_BUTTON.x, CLEAR_BUTTON.y, 1, CLEAR_BUTTON.height);
+    if (state.pressed === "clear") {
+      context.fillStyle = CONTROL_COLORS.pressedFill;
+      context.fillRect(CLEAR_BUTTON.x + 1, CLEAR_BUTTON.y + 1, CLEAR_BUTTON.width - 2, CLEAR_BUTTON.height - 2);
+    }
+
+    const clearLabel = "クリア";
+    const clearWidth = measureBcfntText(clearLabel, fontData, bar.textScale);
+    drawBcfntText(
+      context,
+      clearLabel,
+      CLEAR_BUTTON.x + Math.floor((CLEAR_BUTTON.width - clearWidth) / 2),
+      bar.textCellY,
+      state.pressed === "clear" ? CONTROL_COLORS.pressedText : CANDIDATE_COLORS.text,
+      fontData,
+      bar.textScale
+    );
+
+    drawGohanControlButton(context, CURSOR_BUTTONS.left, "←", state.pressed === "left", fontData);
+    drawGohanControlButton(context, CURSOR_BUTTONS.right, "→", state.pressed === "right", fontData);
+  }
+
+  function drawPreview(context, sourceImage, stateOrIndex = 0, fontData = DRAW_DATA, controlState = null) {
     if (!context || !sourceImage) return false;
     context.save();
     context.imageSmoothingEnabled = false;
     context.globalAlpha = 1;
     context.drawImage(sourceImage, 0, 0, fontData.image.width, fontData.image.height);
     drawCandidateBar(context, stateOrIndex, fontData);
-    drawPreviewControls(context, inputState, root.MISAKI_GOTHIC_2ND_8);
+    drawPreviewControls(context, controlState, fontData);
     context.restore();
     return true;
   }
@@ -407,7 +406,7 @@ context.globalAlpha = baseAlpha;
     const context = canvas.getContext("2d");
     const sourceImage = new Image();
     const candidateState = createCandidateState();
-    const inputState = createInputState();
+    const controlState = createControlState();
     sourceImage.decoding = "async";
     sourceImage.src = `data:${DRAW_DATA.image.mime};base64,${DRAW_DATA.image.base64}`;
 
@@ -417,21 +416,22 @@ context.globalAlpha = baseAlpha;
       if (!menu || !isPreviewEnabled(menu) || menu.overlay?.screen === "bottom") return;
 
       if (pointInside(point, CLEAR_BUTTON)) {
-        clearInput(inputState);
-        candidateState.selectedIndex = 0;
-        candidateState.scrollX = 0;
+        controlState.pressed = "clear";
+        canvas.setPointerCapture?.(event.pointerId);
         event.preventDefault();
         event.stopPropagation();
         return;
       }
       if (pointInside(point, CURSOR_BUTTONS.left)) {
-        moveInputCursor(inputState, -1);
+        controlState.pressed = "left";
+        canvas.setPointerCapture?.(event.pointerId);
         event.preventDefault();
         event.stopPropagation();
         return;
       }
       if (pointInside(point, CURSOR_BUTTONS.right)) {
-        moveInputCursor(inputState, 1);
+        controlState.pressed = "right";
+        canvas.setPointerCapture?.(event.pointerId);
         event.preventDefault();
         event.stopPropagation();
         return;
@@ -461,8 +461,10 @@ context.globalAlpha = baseAlpha;
     }, true);
 
     const finishPointer = (event) => {
-      if (!candidateState.dragging) return;
+      const handled = candidateState.dragging || controlState.pressed !== null;
+      if (!handled) return;
       candidateState.dragging = false;
+      controlState.pressed = null;
       canvas.releasePointerCapture?.(event.pointerId);
       event.preventDefault();
       event.stopPropagation();
@@ -494,7 +496,7 @@ context.globalAlpha = baseAlpha;
       if (!menu || !isPreviewEnabled(menu) || !sourceImage.complete || sourceImage.naturalWidth !== DRAW_DATA.image.width) return;
       // Existing operable bottom-screen UI takes priority over the passive preview.
       if (menu.overlay?.screen === "bottom") return;
-      drawPreview(context, sourceImage, candidateState, DRAW_DATA, inputState);
+      drawPreview(context, sourceImage, candidateState, DRAW_DATA, controlState);
     }
     requestAnimationFrame(frame);
   }
@@ -504,8 +506,8 @@ context.globalAlpha = baseAlpha;
     CLEAR_BUTTON,
     CANDIDATE_BAR,
     CURSOR_BUTTONS,
-    INPUT_TEXT_AREA,
     CANDIDATE_COLORS,
+    CONTROL_COLORS,
     EXTRA_GLYPHS,
     PREVIEW_CANDIDATES,
     DRAW_DATA,
@@ -516,9 +518,7 @@ context.globalAlpha = baseAlpha;
     drawBcfntText,
     candidateLayout,
     createCandidateState,
-    createInputState,
-    moveInputCursor,
-    clearInput,
+    createControlState,
     maximumCandidateScroll,
     clampCandidateScroll,
     ensureCandidateVisible,
@@ -526,6 +526,7 @@ context.globalAlpha = baseAlpha;
     scrollCandidates,
     drawCandidateBar,
     drawPreviewControls,
+    drawGohanControlButton,
     drawPreview,
     pointInside,
     install
