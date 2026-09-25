@@ -16,8 +16,8 @@ test("row values keep the original right-aligned position", () => {
 
 test("F H status group is right-aligned on the historical lower H baseline", () => {
   assert.match(overlaySource, /const hotkeyActive = Boolean\(entry\?\.type !== "folder" && entry\?\.hotkey && entry\.hotkey !== "なし"\)/);
-  assert.match(overlaySource, /const favoriteX = hotkeyActive \? 140 : 147/);
-  assert.match(overlaySource, /drawBitmapText\(context, font, "F", menuX \+ favoriteX \+ itemOffset, y \+ 8, FAVORITE_ACTIVE_COLOR\)/);
+  assert.match(overlaySource, /if \(hotkeyActive\) \{\s*drawBitmapText\(context, font, "F", menuX \+ 140 \+ itemOffset, y \+ 8, FAVORITE_ACTIVE_COLOR\)/s);
+  assert.match(overlaySource, /else \{\s*drawBitmapText\(context, font, "F", menuX \+ 147 \+ itemOffset, y \+ 8, FAVORITE_ACTIVE_COLOR\)/s);
   assert.match(appSource, /entry\.type !== "folder" && entry\.hotkey !== "なし"[\s\S]*drawBitmapText\(top, font, "H", menuX \+ 147 \+ itemOffset, y \+ 8, "#78a9ff"\)/);
   assert.doesNotMatch(overlaySource, /drawBitmapText\(context, font, "H"/);
   assert.match(overlaySource, /if \(!favoriteActive\) continue/);
