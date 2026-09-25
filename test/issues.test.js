@@ -4,8 +4,12 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const core = require("../ui-model.js");
-const { HOLD_CANCEL_THRESHOLD } = require("../issue-fixes.js");
-const { CheatMenuModel, MENU, walkItems } = core;
+const {
+  HOLD_CANCEL_THRESHOLD,
+  NOTICE_LINE_HEIGHT,
+  DEFAULT_PERSISTENCE_SETTINGS
+} = require("../issue-fixes.js");
+const { CheatMenuModel, NotificationTimeline, NOTICE, MENU, walkItems } = core;
 
 const overlaySource = fs.readFileSync(path.join(__dirname, "../issue-overlay.js"), "utf8");
 const fixesSource = fs.readFileSync(path.join(__dirname, "../issue-fixes.js"), "utf8");
@@ -108,14 +112,21 @@ test("issue #3 disabled items stay cursor-selectable but reject mutation and act
   assert.match(overlaySource, /installDisabledPointerSelection/);
 });
 
-test("issue #4 START opens settings and FAVORITES is reached from that settings frame", () => {
+test("START opens settings with retention controls and FAVORITES remains the first action", () => {
   const { menu, item } = rootCheckboxMenu();
   menu.toggleFavorite(item, 10);
 
   menu.handle("start", 100, true, false);
   assert.equal(menu.currentFrame().kind, "settings");
   assert.equal(menu.currentFrame().title, "SETTINGS");
-  assert.deepEqual(menu.currentFrame().items.map((entry) => entry.label), ["FAVORITES", "VALUE LOCK"]);
+  assert.deepEqual(menu.currentFrame().items.map((entry) => entry.label), [
+    "FAVORITES",
+    "値を固定",
+    "お気に入りを保持",
+    "オンにした項目を保持",
+    "オンにしたお気に入りを保持"
+  ]);
+  assert.deepEqual(menu.persistenceSettingsSnapshot(), DEFAULT_PERSISTENCE_SETTINGS);
 
   menu.handle("a", 120, true, false);
   assert.equal(menu.currentFrame().kind, "favorites", "A on the settings FAVORITES entry opens favorites");
@@ -141,11 +152,13 @@ test("issue #4 START opens settings and FAVORITES is reached from that settings 
   assert.match(html, /issue-overlay\.js/);
   assert.ok(html.indexOf("issue-fixes.js") < html.indexOf("app.js"));
   assert.ok(html.indexOf("app.js") < html.indexOf("issue-overlay.js"));
-  assert.match(overlaySource, /START:SETTINGS/);
+  assert.match(overlaySource, /通常のチート説明欄には/);
+  assert.match(overlaySource, /else controlText = `\$\{menu\.isItemFixed/);
 });
 
-test("issue #5 VALUE LOCK pins only editable linked list/value items", () => {
-  const menu = new CheatMenuModel();
+test("値を固定 pins only editable linked list/value items", () => {
+  const emitted = [];
+  const menu = new CheatMenuModel((title, message) => emitted.push({ title, message }));
   menu.open(0);
   const linked = selectNestedItem(menu, "UIテスト", "連動型数値");
   assert.equal(linked.type, "linked-value");
@@ -155,12 +168,13 @@ test("issue #5 VALUE LOCK pins only editable linked list/value items", () => {
   assert.equal(menu.currentFrame().kind, "settings");
   menu.currentFrame().selection = 1;
   const lockSetting = menu.selectedItem();
-  assert.equal(lockSetting.label, "VALUE LOCK");
+  assert.equal(lockSetting.label, "値を固定");
   assert.equal(lockSetting.disabled, false);
   menu.handle("a", 120, true, false);
   assert.equal(menu.isItemFixed(linked), true);
   assert.equal(linked.fixedValue, initial);
   assert.equal(lockSetting.value, true);
+  assert.equal(emitted.at(-1).title, "値を固定");
 
   linked.linkedValue = initial + 500;
   menu.update(140);
@@ -169,7 +183,7 @@ test("issue #5 VALUE LOCK pins only editable linked list/value items", () => {
   assert.equal(linked.appliedValue, initial);
 
   menu.handle("a", 160, true, false);
-  assert.equal(menu.isItemFixed(linked), false, "VALUE LOCK toggles off immediately");
+  assert.equal(menu.isItemFixed(linked), false, "値を固定 toggles off immediately");
 
   menu.handle("start", 180, true, false);
   assert.equal(menu.currentFrame().title, "UIテスト");
@@ -186,8 +200,107 @@ test("issue #5 VALUE LOCK pins only editable linked list/value items", () => {
   menu.frames = [{ title: "ROOT", items: menu.rootItems, selection: menu.rootItems.indexOf(ordinary) }];
   menu.handle("start", 260, true, false);
   menu.currentFrame().selection = 1;
-  assert.equal(menu.selectedItem().disabled, true, "VALUE LOCK is disabled for non-linked item types");
+  assert.equal(menu.selectedItem().disabled, true, "値を固定 is disabled for non-linked item types");
 
   assert.match(fixesSource, /linkedAvailable === false/);
-  assert.match(overlaySource, /LOCK/);
+  assert.match(overlaySource, /値を固定/);
+});
+
+test("retained state includes listboxes, numeric values, checkboxes and fixed linked values", () => {
+  const menu = new CheatMenuModel();
+  const walking = findItem(menu, "歩行速度アップ");
+  const weather = findItem(menu, "天候");
+  const bells = selectNestedItem(menu, "数値設定", "所持ベル");
+  menu.frames = [{ title: "ROOT", items: menu.rootItems, selection: 0 }];
+  const linked = selectNestedItem(menu, "UIテスト", "連動型数値");
+
+  walking.value = true;
+  walking.appliedValue = true;
+  weather.value = 2;
+  weather.appliedValue = 2;
+  bells.value = 4200;
+  bells.appliedValue = 4200;
+  linked.value = 1777;
+  linked.appliedValue = 1777;
+  linked.linkedValue = 1777;
+  linked.fixed = true;
+  linked.fixedValue = 1777;
+  menu.toggleFavorite(weather, 10);
+
+  const all = menu.retainedStateSnapshot(false);
+  const favorites = menu.retainedStateSnapshot(true);
+  assert.equal(all[walking.favoriteKey].value, true);
+  assert.equal(all[weather.favoriteKey].value, 2);
+  assert.equal(all[bells.favoriteKey].value, 4200);
+  assert.deepEqual(all[linked.favoriteKey], { type: "linked-value", value: 1777, fixed: true, fixedValue: 1777 });
+  assert.deepEqual(Object.keys(favorites), [weather.favoriteKey]);
+
+  const restored = new CheatMenuModel();
+  const count = restored.restoreRetainedStateSnapshot(all);
+  assert.ok(count >= 4);
+  assert.equal(findItem(restored, "歩行速度アップ").appliedValue, true);
+  assert.equal(findItem(restored, "天候").appliedValue, 2);
+  assert.equal(findItem(restored, "所持ベル").appliedValue, 4200);
+  const restoredLinked = findItem(restored, "連動型数値");
+  assert.equal(restoredLinked.fixed, true);
+  assert.equal(restoredLinked.fixedValue, 1777);
+  assert.match(fixesSource, /値固定、list\/listbox、linked-list、value、slider、linked-value/);
+  assert.match(fixesSource, /未適用の編集中値は保存しない/);
+});
+
+test("retention settings toggle independently inside SETTINGS", () => {
+  const menu = new CheatMenuModel();
+  menu.open(0);
+  menu.handle("start", 100, true, false);
+  const frame = menu.currentFrame();
+
+  frame.selection = 2;
+  assert.equal(menu.selectedItem().value, true);
+  menu.handle("a", 120, true, false);
+  assert.equal(menu.persistenceSettingsSnapshot().keepFavorites, false);
+
+  frame.selection = 3;
+  menu.handle("a", 140, true, false);
+  assert.equal(menu.persistenceSettingsSnapshot().keepEnabledItems, true);
+
+  frame.selection = 4;
+  menu.handle("a", 160, true, false);
+  assert.equal(menu.persistenceSettingsSnapshot().keepEnabledFavorites, true);
+});
+
+test("notifications support variable row counts", () => {
+  assert.equal(NOTICE_LINE_HEIGHT, 10);
+  const timeline = new NotificationTimeline();
+  const item = timeline.add(0, "TITLE", "one\ntwo\nthree");
+  assert.equal(item.noticeHeight, NOTICE.height + NOTICE_LINE_HEIGHT * 2);
+  const sample = timeline.sample(NOTICE.enterDuration);
+  assert.equal(sample.length, 1);
+  assert.equal(sample[0].noticeHeight, item.noticeHeight);
+  assert.match(fixesSource, /wrapNoticeLine/);
+  assert.match(fixesSource, /drawBrowserNotices/);
+});
+
+test("notification overflow exits upward and is removed only after it is fully outside", () => {
+  const timeline = new NotificationTimeline();
+  for (let index = 0; index < NOTICE.maximum + 1; index++) timeline.add(index * 10);
+  const overflowStartedAt = NOTICE.spawnInterval * NOTICE.maximum;
+  const duringExit = timeline.sample(overflowStartedAt);
+  assert.equal(duringExit.length, NOTICE.maximum + 1, "overflow item remains alive while its exit animation is visible");
+  assert.equal(duringExit[0].id, 1);
+  assert.equal(duringExit[0].overflowExit, true);
+  assert.ok(duringExit[0].y + NOTICE.height > 0, "oldest notice is not deleted until its lower edge leaves the screen");
+
+  const afterExit = timeline.sample(overflowStartedAt + NOTICE.enterDuration);
+  assert.equal(afterExit.length, NOTICE.maximum);
+  assert.equal(afterExit[0].id, 2);
+  assert.match(fixesSource, /this\.getY\(item, now\) \+ \(item\.noticeHeight \|\| NOTICE\.height\) > 0/);
+});
+
+test("menu row status markers use F then H and show inactive states in gray", () => {
+  assert.match(overlaySource, /drawBitmapText\(context, font, "F", menuX \+ 140/);
+  assert.match(overlaySource, /drawBitmapText\(context, font, "H", menuX \+ 147/);
+  assert.match(overlaySource, /MARKER_INACTIVE_COLOR = "#4c5550"/);
+  assert.match(overlaySource, /eraseLegacyFavoriteMarker/);
+  assert.match(overlaySource, /favoriteActive \? FAVORITE_ACTIVE_COLOR : MARKER_INACTIVE_COLOR/);
+  assert.match(overlaySource, /hotkeyActive \? HOTKEY_ACTIVE_COLOR : MARKER_INACTIVE_COLOR/);
 });
