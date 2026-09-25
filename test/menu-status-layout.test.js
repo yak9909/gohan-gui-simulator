@@ -23,10 +23,12 @@ test("only active F and H markers are drawn in F then H order", () => {
   assert.match(source, /entry\?\.type !== "folder" && entry\?\.hotkey/);
 });
 
-test("partially visible eleventh row keeps markers inside the list viewport", () => {
+test("partially visible eleventh row uses the same rectangular clip as item text", () => {
+  assert.match(source, /LIST_CLIP_TOP = 24/);
   assert.match(source, /LIST_CLIP_BOTTOM = 212/);
-  assert.match(source, /return Math\.min\(y \+ 8, LIST_CLIP_BOTTOM - markerHeight\)/);
-  assert.doesNotMatch(source, /if \(y < 25 \|\| y > 204\) continue/);
+  assert.match(source, /function markerY\(y\) \{[\s\S]*return y;/);
+  assert.doesNotMatch(source, /Math\.min\(y \+ 8, LIST_CLIP_BOTTOM/);
+  assert.doesNotMatch(source, /LIST_CLIP_BOTTOM - markerHeight/);
   assert.match(source, /context\.rect\(menuX \+ 2, LIST_CLIP_TOP, MENU\.width - 6, LIST_CLIP_BOTTOM - LIST_CLIP_TOP\)/);
 });
 
