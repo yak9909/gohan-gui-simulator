@@ -277,8 +277,8 @@ function boot() {
       // CTRPF移植時も statusColors の順番を上→下の表示順として扱い、12pxを等分する。
       const statusColors = [];
       if (menu.isFavorite(entry)) statusColors.push("#d6c98a");
-      if (entry.type !== "folder" && entry.hotkey !== "なし") statusColors.push("#78a9ff");
       if (menu.isItemRetained?.(entry)) statusColors.push("#e5484d");
+      if (entry.type !== "folder" && entry.hotkey !== "なし") statusColors.push("#78a9ff");
       const statusHeight = 12;
       // CTRPF移植時も各状態色へ同じ透過率を掛け、色分割の比率だけを変える。
       const statusAlpha = 0.6;

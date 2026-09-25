@@ -16,8 +16,9 @@ test("row values keep the original right-aligned position", () => {
 
 test("row states use the historical 1px value-lock position and split vertically", () => {
   assert.match(appSource, /menu\.isFavorite\(entry\).*statusColors\.push\("#d6c98a"\)/s);
-  assert.match(appSource, /entry\.type !== "folder" && entry\.hotkey !== "なし".*statusColors\.push\("#78a9ff"\)/s);
   assert.match(appSource, /menu\.isItemRetained\?\.\(entry\).*statusColors\.push\("#e5484d"\)/s);
+  assert.match(appSource, /entry\.type !== "folder" && entry\.hotkey !== "なし".*statusColors\.push\("#78a9ff"\)/s);
+  assert.match(appSource, /statusColors\.push\("#d6c98a"\);[\s\S]*statusColors\.push\("#e5484d"\);[\s\S]*statusColors\.push\("#78a9ff"\);/);
   assert.match(appSource, /const statusHeight = 12/);
   assert.match(appSource, /const statusAlpha = 0\.6/);
   assert.match(appSource, /top\.save\(\);\s*top\.globalAlpha = statusAlpha/s);

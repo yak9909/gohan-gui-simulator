@@ -9,10 +9,10 @@ State markers use one 1px-wide, 12px-tall vertical line at `menuX + 4`, matching
 Segments are ordered from top to bottom as follows:
 
 1. お気に入り: yellow `#d6c98a`
-2. ホットキー: blue `#78a9ff`
-3. `この項目を保持`: red `#e5484d`
+2. `この項目を保持`: red `#e5484d`
+3. ホットキー: blue `#78a9ff`
 
-For example, お気に入り + ホットキー uses yellow/blue at 1:1, and お気に入り + ホットキー + `この項目を保持` uses yellow/blue/accent at 1:1:1. Inactive states draw nothing. `値を固定` does not add a vertical line; a fixed value is indicated by its cyan value text only. The marker geometry is rendered inside the same menu-item clip as labels and values, including the partially visible eleventh row.
+For example, お気に入り + ホットキー uses yellow/blue at 1:1, and お気に入り + `この項目を保持` + ホットキー uses yellow/red/blue at 1:1:1. ホットキーは複数状態の中で常に一番下へ配置する。 Inactive states draw nothing. `値を固定` does not add a vertical line; a fixed value is indicated by its cyan value text only. The marker geometry is rendered inside the same menu-item clip as labels and values, including the partially visible eleventh row.
 
 ## Persistence settings
 
