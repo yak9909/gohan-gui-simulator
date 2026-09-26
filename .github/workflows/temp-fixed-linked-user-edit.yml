@@ -17,6 +17,18 @@ jobs:
       - uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Adjust regression timing
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('tools/temp-fixed-linked-user-edit.py')
+          text = p.read_text(encoding='utf-8')
+          old = '''  const weather = findItem(menu, "天候");'''
+          new = '''  menu.update(300);\n  assert.equal(menu.overlay, null, "numeric overlay finishes closing before normal menu input resumes");\n\n  const weather = findItem(menu, "天候");'''
+          if text.count(old) != 1:
+              raise SystemExit('expected one weather test marker')
+          p.write_text(text.replace(old, new), encoding='utf-8')
+          PY
       - name: Apply fixed linked edit patch
         run: python tools/temp-fixed-linked-user-edit.py
       - name: Run tests
