@@ -1,0 +1,30 @@
+name: Apply retention settings v2
+
+on:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: contains(github.event.head_commit.message, 'Run retention settings v2 patch')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply retention settings patch
+        run: python tools/temp-retention-settings-v2.py
+      - name: Run tests
+        run: npm test
+      - name: Remove temporary files
+        run: rm tools/temp-retention-settings-v2.py .github/workflows/temp-retention-settings-v2.yml
+      - name: Commit patch
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "Restructure retention settings"
+          git push
