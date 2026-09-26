@@ -183,6 +183,7 @@ test("checkbox-list setting toggles individual blocked buttons and remains UI/pe
   assert.equal(menu.inlineList.index, 0);
   menu.handle("a", 120, true, false);
   assert.equal(setting.value, 17, "A option can be checked without closing the list");
+  assert.equal(setting.appliedValue, 17, "SETTINGS checkbox-list changes apply immediately");
   assert.equal(menu.inlineList.index, 0);
   assert.equal(menu.persistenceSettingsSnapshot().blockButtonsUntilReleaseMask, 17);
   assert.equal(formatValue(setting), "2/5");
@@ -191,6 +192,7 @@ test("checkbox-list setting toggles individual blocked buttons and remains UI/pe
   assert.equal(menu.inlineList.index, 4);
   menu.handle("a", 140, true, false);
   assert.equal(setting.value, 1, "START can be unchecked independently");
+  assert.equal(setting.appliedValue, 1, "immediate apply follows every checkbox-list toggle");
   assert.equal(menu.persistenceSettingsSnapshot().blockButtonsUntilReleaseMask, 1);
   menu.handle("b", 150, true, false);
   assert.ok(menu.inlineList?.closing, "B closes the checkbox-list");
@@ -201,6 +203,8 @@ test("checkbox-list setting toggles individual blocked buttons and remains UI/pe
   assert.match(fixesSource, /物理ボタンを離した瞬間に/);
   assert.doesNotMatch(fixesSource, /gameInputCaptureState\s*=.*blockButtonsUntilReleaseMask/s);
   assert.match(appSource, /list\.item\.type === "checkbox-list"/);
+  assert.match(appSource, /"-\* GOHAN \*-"/);
+  assert.doesNotMatch(appSource, /"CHEAT MENU"/);
 });
 
 test("値を固定 pins only editable linked list/value items", () => {

@@ -248,8 +248,10 @@ function boot() {
     top.fillStyle = "rgba(12, 16, 13, .78)"; top.fillRect(menuX, 0, MENU.width, 240);
     top.fillStyle = "rgba(99, 228, 164, .9)"; top.fillRect(menuX + MENU.width - 2, 0, 2, 240);
     top.fillStyle = "rgba(28, 43, 34, .74)"; top.fillRect(menuX, 0, MENU.width - 2, 23);
-    drawBitmapText(top, font, "CHEAT MENU", menuX + 7, 7, "#ffffff");
-    drawBitmapText(top, font, trimBitmapText(font, frame.title, 62), menuX + 91, 7, "#79d9a7");
+    drawBitmapText(top, font, "-* GOHAN *-", menuX + 7, 7, "#ffffff");
+    // 固定タイトルが1文字分長くなったため、右側の現在フレーム名も同じ4px間隔を保つ。
+    // CTRPF移植時もタイトル同士が重ならないよう、この開始位置と最大幅をセットで扱う。
+    drawBitmapText(top, font, trimBitmapText(font, frame.title, 54), menuX + 99, 7, "#79d9a7");
 
     top.save();
     top.beginPath(); top.rect(menuX + 2, 24, MENU.width - 6, 188); top.clip();

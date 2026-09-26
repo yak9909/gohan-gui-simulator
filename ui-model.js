@@ -1378,6 +1378,11 @@ class CheatMenuModel {
       // チェックボックス式はリストを閉じず、カーソル位置のビットだけを反転する。
       // CTRPF移植時も ListBox の選択移動を流用し、決定時だけ複数選択状態を更新する。
       list.item.value ^= (1 << list.index);
+      if (list.item.applyCheckboxListImmediately) {
+        // 設定画面のチェックボックス式はAで切り替えた時点で適用済みにする。
+        // CTRPF移植時も設定値はこのタイミングで設定本体へ書き込み、未適用状態を残さない。
+        list.item.appliedValue = list.item.value;
+      }
       if (typeof list.item.onCheckboxListChange === "function") {
         list.item.onCheckboxListChange(list.item.value, list.index);
       }

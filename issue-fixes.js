@@ -154,6 +154,9 @@
       value: mask,
       appliedValue: mask,
       onCheckboxListChange: onChange,
+      // SETTINGS内のチェックボックス式は選択した瞬間を確定値として扱う。
+      // CTRPF移植時も設定系の複数選択は別途「適用」を要求せず即時反映する。
+      applyCheckboxListImmediately: true,
       hotkey: "なし",
       appliedHotkey: "なし",
       disabled: false

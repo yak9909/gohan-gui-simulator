@@ -14,6 +14,12 @@ Segments are ordered from top to bottom as follows:
 
 For example, お気に入り + ホットキー uses yellow/blue at 1:1, and お気に入り + `この項目を保持` + ホットキー uses yellow/red/blue at 1:1:1. ホットキーは複数状態の中で常に一番下へ配置する。Inactive states draw nothing. `値を固定` does not add a vertical line; a fixed value is indicated by its cyan value text only.
 
+## Menu title
+
+The fixed menu title is `-* GOHAN *-`. The current frame title starts farther right so the two labels retain a small gap and never overlap.
+
+SETTINGS `checkbox-list` entries apply each A-button toggle immediately: `value` and `appliedValue` are synchronized at the moment an option is checked/unchecked.
+
 ## SETTINGS order
 
 SETTINGS is intentionally not folder-first. The root order is:
