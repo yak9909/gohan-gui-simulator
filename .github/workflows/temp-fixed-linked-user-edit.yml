@@ -1,0 +1,34 @@
+name: Apply fixed linked user edit update
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/temp-fixed-linked-user-edit.py'
+      - '.github/workflows/temp-fixed-linked-user-edit.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Apply fixed linked edit patch
+        run: python tools/temp-fixed-linked-user-edit.py
+      - name: Run tests
+        run: npm test
+      - name: Remove temporary files
+        run: |
+          rm tools/temp-fixed-linked-user-edit.py
+          rm .github/workflows/temp-fixed-linked-user-edit.yml
+      - name: Commit patch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Allow fixed linked user edits and list stepping'
+          git push
