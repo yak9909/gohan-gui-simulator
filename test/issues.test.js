@@ -9,7 +9,7 @@ const {
   NOTICE_LINE_HEIGHT,
   DEFAULT_PERSISTENCE_SETTINGS
 } = require("../issue-fixes.js");
-const { CheatMenuModel, NotificationTimeline, NOTICE, MENU, walkItems } = core;
+const { CheatMenuModel, NotificationTimeline, NOTICE, MENU, walkItems, formatValue } = core;
 
 const overlaySource = fs.readFileSync(path.join(__dirname, "../issue-overlay.js"), "utf8");
 const appSource = fs.readFileSync(path.join(__dirname, "../app.js"), "utf8");
@@ -126,14 +126,15 @@ test("START opens settings with the requested mixed item/folder order", () => {
     "お気に入り",
     "項目の保持設定",
     "お気に入りを保持",
-    "押し切るまでABXYボタンの遮断"
+    "押し切るまでボタンの遮断"
   ]);
   assert.equal(menu.currentFrame().items[0].description, "選択中の項目の状態を次回も保持します。");
   assert.equal(menu.currentFrame().items[2].type, "folder");
   assert.equal(menu.currentFrame().items[3].type, "folder");
-  assert.equal(menu.currentFrame().items[5].type, "checkbox");
-  assert.equal(menu.currentFrame().items[5].value, false);
-  assert.equal(menu.currentFrame().items[5].description, "ABXYは押下中にゲームへ渡さず、離した時に入力します。");
+  assert.equal(menu.currentFrame().items[5].type, "checkbox-list");
+  assert.deepEqual(menu.currentFrame().items[5].options, ["A", "B", "X", "Y", "START"]);
+  assert.equal(menu.currentFrame().items[5].value, 1 << 4, "START is checked by default");
+  assert.equal(menu.currentFrame().items[5].description, "押下中にゲームへ渡さず、離した時に入力するボタンを選択します。");
   assert.deepEqual(menu.persistenceSettingsSnapshot(), DEFAULT_PERSISTENCE_SETTINGS);
 
   menu.currentFrame().selection = 2;
@@ -165,25 +166,41 @@ test("START opens settings with the requested mixed item/folder order", () => {
   assert.doesNotMatch(overlaySource, /fillRect\(174, 35, 211, 11\)/);
 });
 
-test("ABXY release-block setting is UI/persistence only", () => {
+test("checkbox-list setting toggles individual blocked buttons and remains UI/persistence only", () => {
   const menu = new CheatMenuModel();
   menu.open(0);
   menu.handle("start", 100, true, false);
   const frame = menu.currentFrame();
   frame.selection = 5;
   const setting = menu.selectedItem();
-  assert.equal(setting.label, "押し切るまでABXYボタンの遮断");
-  assert.equal(setting.value, false);
+  assert.equal(setting.label, "押し切るまでボタンの遮断");
+  assert.equal(setting.type, "checkbox-list");
+  assert.equal(setting.value, 16);
+  assert.equal(formatValue(setting), "1/5");
 
   menu.handle("a", 110, true, false);
-  assert.equal(setting.value, true);
-  assert.equal(menu.persistenceSettingsSnapshot().blockAbxyUntilRelease, true);
+  assert.equal(menu.inlineList?.item, setting, "A opens the checkbox-list inline UI");
+  assert.equal(menu.inlineList.index, 0);
+  menu.handle("a", 120, true, false);
+  assert.equal(setting.value, 17, "A option can be checked without closing the list");
+  assert.equal(menu.inlineList.index, 0);
+  assert.equal(menu.persistenceSettingsSnapshot().blockButtonsUntilReleaseMask, 17);
+  assert.equal(formatValue(setting), "2/5");
+
+  for (let index = 0; index < 4; index++) menu.handle("down", 130 + index, true, false);
+  assert.equal(menu.inlineList.index, 4);
+  menu.handle("a", 140, true, false);
+  assert.equal(setting.value, 1, "START can be unchecked independently");
+  assert.equal(menu.persistenceSettingsSnapshot().blockButtonsUntilReleaseMask, 1);
+  menu.handle("b", 150, true, false);
+  assert.ok(menu.inlineList?.closing, "B closes the checkbox-list");
 
   // This simulator only stores/previews the CTRPF option. It must not alter the
-  // simulator's game-input capture contract or synthesize release-time ABXY input.
-  assert.match(fixesSource, /CTRPF移植専用設定。シミュレーターの入力処理には接続しない。/);
-  assert.match(fixesSource, /ボタンを離した瞬間に/);
-  assert.doesNotMatch(fixesSource, /gameInputCaptureState\s*=.*blockAbxyUntilRelease/s);
+  // simulator's game-input capture contract or synthesize release-time button input.
+  assert.match(fixesSource, /チェックボックス式のUI操作だけをシミュレーターで再現/);
+  assert.match(fixesSource, /物理ボタンを離した瞬間に/);
+  assert.doesNotMatch(fixesSource, /gameInputCaptureState\s*=.*blockButtonsUntilReleaseMask/s);
+  assert.match(appSource, /list\.item\.type === "checkbox-list"/);
 });
 
 test("値を固定 pins only editable linked list/value items", () => {

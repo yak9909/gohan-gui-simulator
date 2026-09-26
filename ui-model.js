@@ -382,6 +382,10 @@ function formatValue(entry, now = 0) {
     return entry.value ? "ON" : "OFF";
   }
   if (entry.type === "list" || entry.type === "linked-list") return entry.options[entry.value];
+  if (entry.type === "checkbox-list") {
+    const selected = entry.options.reduce((count, _option, index) => count + ((entry.value & (1 << index)) ? 1 : 0), 0);
+    return `${selected}/${entry.options.length}`;
+  }
   if (entry.format === "hex") return `0x${Math.round(entry.value).toString(16).toUpperCase().padStart(4, "0")}`;
   if (entry.format === "float") return Number(entry.value).toFixed(1);
   if (["value", "slider", "linked-value"].includes(entry.type)) return String(Math.round(entry.value));
@@ -1115,6 +1119,10 @@ class CheatMenuModel {
       item: entry, index: entry.value,
       ...createListboxAnimation(now, entry.value, entry.options.length, LISTBOX.inlineVisibleRows)
     };
+    else if (entry.type === "checkbox-list") this.inlineList = {
+      item: entry, index: 0, checkboxMode: true,
+      ...createListboxAnimation(now, 0, entry.options.length, LISTBOX.inlineVisibleRows)
+    };
     else if (entry.type === "value" || entry.type === "linked-value") this.openNumeric(entry, false, now);
     else if (entry.type === "slider") this.openSlider(entry, false, now);
     return true;
@@ -1366,6 +1374,14 @@ class CheatMenuModel {
     if (list.closing) return;
     if (key === "up") moveListboxSelection(list, -1, now, list.item.options.length, !repeated);
     else if (key === "down") moveListboxSelection(list, 1, now, list.item.options.length, !repeated);
+    else if (key === "a" && list.item.type === "checkbox-list") {
+      // チェックボックス式はリストを閉じず、カーソル位置のビットだけを反転する。
+      // CTRPF移植時も ListBox の選択移動を流用し、決定時だけ複数選択状態を更新する。
+      list.item.value ^= (1 << list.index);
+      if (typeof list.item.onCheckboxListChange === "function") {
+        list.item.onCheckboxListChange(list.item.value, list.index);
+      }
+    }
     else if (key === "a") { list.item.value = list.index; closeListbox(list, now); }
     else if (key === "b") closeListbox(list, now);
   }

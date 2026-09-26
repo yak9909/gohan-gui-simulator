@@ -23,13 +23,15 @@ SETTINGS is intentionally not folder-first. The root order is:
 3. `お気に入り` (folder)
 4. `項目の保持設定` (folder)
 5. `お気に入りを保持`
-6. `押し切るまでABXYボタンの遮断`
+6. `押し切るまでボタンの遮断`
 
 `この項目を保持` uses the description `選択中の項目の状態を次回も保持します。`.
 
 `お気に入り` is a folder-style entry, not an action-style SETTINGS command. Opening it uses the normal favorites frame so favorite items remain live references to the original menu entries.
 
-`押し切るまでABXYボタンの遮断` is default OFF and is a CTRPF-port contract only. The simulator stores and displays the option but does not alter simulated input behavior. In CTRPF, when enabled, A/B/X/Y press events must be withheld from the game while the physical button remains down; the game receives a single corresponding input only when that button is released. Holding the button must not produce game-side press/repeat reactions before release.
+`押し切るまでボタンの遮断` uses the new `checkbox-list` item type. Its options are `A`, `B`, `X`, `Y`, and `START`; only `START` is checked by default. A opens an inline list where every row has its own checkbox, A toggles the highlighted checkbox without closing the list, and B closes it. The menu row shows the selected-count summary such as `1/5`.
+
+This option remains a CTRPF-port contract only: the simulator stores and previews the checkbox-list selection but does not alter simulated game input. In CTRPF, each checked button must be withheld from the game while physically held, then delivered as one game-side input when released. Holding a checked button must not produce game-side press/repeat reactions before release.
 
 ## 項目の保持設定
 

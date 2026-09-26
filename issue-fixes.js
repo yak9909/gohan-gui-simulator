@@ -38,7 +38,8 @@
     keepRetainedToggleStates: true,
     keepFavoriteToggleStates: true,
     keepAllToggleStates: false,
-    blockAbxyUntilRelease: false
+    // A/B/X/Y/START の順。初期状態では START のみ選択する。
+    blockButtonsUntilReleaseMask: 1 << 4
   });
 
   const original = {
@@ -141,6 +142,24 @@
     };
   }
 
+  function settingsCheckboxList(label, description, action, options, value, onChange = null) {
+    const mask = Number(value) >>> 0;
+    return {
+      id: `settings-${action}`,
+      type: "checkbox-list",
+      label,
+      description,
+      settingsAction: action,
+      options: [...options],
+      value: mask,
+      appliedValue: mask,
+      onCheckboxListChange: onChange,
+      hotkey: "なし",
+      appliedHotkey: "なし",
+      disabled: false
+    };
+  }
+
   function ensurePersistenceSettings(menu) {
     if (menu.persistenceSettings) return menu.persistenceSettings;
     const stored = readJson(browserStorage(), STORAGE_KEYS.settings, {});
@@ -164,9 +183,10 @@
       keepAllToggleStates: stored?.keepAllToggleStates !== undefined
         ? Boolean(stored.keepAllToggleStates)
         : (stored?.keepEnabledItems !== undefined ? Boolean(stored.keepEnabledItems) : DEFAULT_PERSISTENCE_SETTINGS.keepAllToggleStates),
-      blockAbxyUntilRelease: stored?.blockAbxyUntilRelease !== undefined
-        ? Boolean(stored.blockAbxyUntilRelease)
-        : DEFAULT_PERSISTENCE_SETTINGS.blockAbxyUntilRelease
+      blockButtonsUntilReleaseMask: Number.isInteger(stored?.blockButtonsUntilReleaseMask)
+        ? (stored.blockButtonsUntilReleaseMask & 0x1f)
+        // 旧ABXY設定がONだった場合はABXYを引き継ぎ、新規追加のSTARTも既定ONにする。
+        : (stored?.blockAbxyUntilRelease === true ? 0x1f : DEFAULT_PERSISTENCE_SETTINGS.blockButtonsUntilReleaseMask)
     };
     return menu.persistenceSettings;
   }
@@ -925,17 +945,23 @@
       persistence.keepFavorites
     );
     // CTRPF移植専用設定。シミュレーターの入力処理には接続しない。
-    // CTRPF側では A/B/X/Y の押下中はゲーム側へ入力を渡さず、ボタンを離した瞬間に
-    // 初めて単発のゲーム入力として渡す。押し続けている間のゲーム側反応やリピートは発生させない。
-    const blockAbxyUntilRelease = settingsToggle(
-      "押し切るまでABXYボタンの遮断",
-      "ABXYは押下中にゲームへ渡さず、離した時に入力します。",
-      "block-abxy-until-release",
-      persistence.blockAbxyUntilRelease
+    // チェックされた A/B/X/Y/START は押下中のゲーム入力を遮断し、物理ボタンを離した瞬間に
+    // 初めて単発入力としてゲーム側へ渡す。押下中の反応やキーリピートは発生させない。
+    // チェックボックス式のUI操作だけをシミュレーターで再現し、実際の入力遮断はCTRPF側だけで行う。
+    const blockButtonsUntilRelease = settingsCheckboxList(
+      "押し切るまでボタンの遮断",
+      "押下中にゲームへ渡さず、離した時に入力するボタンを選択します。",
+      "block-buttons-until-release",
+      ["A", "B", "X", "Y", "START"],
+      persistence.blockButtonsUntilReleaseMask,
+      (mask) => {
+        persistence.blockButtonsUntilReleaseMask = mask & 0x1f;
+        persistBrowserState(this);
+      }
     );
 
     // SETTINGSだけは操作頻度を優先し、フォルダを先頭へ寄せず指定順を維持する。
-    return [keepThisItem, lock, favorites, retentionSettings, keepFavorites, blockAbxyUntilRelease];
+    return [keepThisItem, lock, favorites, retentionSettings, keepFavorites, blockButtonsUntilRelease];
   };
 
   prototype.openSettings = function (now = 0) {
@@ -997,6 +1023,9 @@
         entry.appliedValue = entry.value;
         return true;
       }
+      if (entry.type === "checkbox-list") {
+        return original.activateSelected.call(this, now);
+      }
       const settingKey = ({
         "keep-favorites": "keepFavorites",
         "keep-retained-value-locks": "keepRetainedValueLocks",
@@ -1004,8 +1033,7 @@
         "keep-all-value-locks": "keepAllValueLocks",
         "keep-retained-toggle-states": "keepRetainedToggleStates",
         "keep-favorite-toggle-states": "keepFavoriteToggleStates",
-        "keep-all-toggle-states": "keepAllToggleStates",
-        "block-abxy-until-release": "blockAbxyUntilRelease"
+        "keep-all-toggle-states": "keepAllToggleStates"
       })[entry.settingsAction];
       if (settingKey) {
         const persistence = ensurePersistenceSettings(this);

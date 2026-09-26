@@ -193,6 +193,7 @@ function boot() {
     if (entry.type === "toggle-action" || entry.type === "action") return "A";
     if (entry.type === "linked-list" || entry.type === "linked-value") return "S";
     if (entry.type === "list") return "L";
+    if (entry.type === "checkbox-list") return "C";
     return "V";
   }
 
@@ -361,7 +362,12 @@ function boot() {
     for (let index = firstIndex; index <= lastIndex; index++) {
       const rowY = Math.round(y + 3 + (index - scrollPosition) * 14);
       if (index === list.index) { top.fillStyle = "rgba(41, 69, 55, .64)"; top.fillRect(x + 3, rowY, 122, 12); }
-      drawBitmapText(top, font, list.item.options[index], x + 8, rowY + 2, index === list.index ? "#ffffff" : "#aeb9b1");
+      const optionText = list.item.type === "checkbox-list"
+        ? `[${list.item.value & (1 << index) ? "X" : " "}] ${list.item.options[index]}`
+        : list.item.options[index];
+      // チェックボックス式も通常のインラインListBoxと同じ行レイアウトを使う。
+      // CTRPF移植時は各行の先頭へ [ ] / [X] を描画すれば同じ見た目になる。
+      drawBitmapText(top, font, optionText, x + 8, rowY + 2, index === list.index ? "#ffffff" : "#aeb9b1");
     }
     top.restore();
     drawScrollBar(top, x + 128, y + 3, height - 6, visibleRows, list.item.options.length, scrollPosition);
