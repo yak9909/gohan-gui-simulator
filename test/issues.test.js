@@ -113,7 +113,7 @@ test("issue #3 disabled items stay cursor-selectable but reject mutation and act
   assert.match(overlaySource, /installDisabledPointerSelection/);
 });
 
-test("START opens settings with retention controls and FAVORITES remains the first action", () => {
+test("START opens settings with the requested mixed item/folder order", () => {
   const { menu, item } = rootCheckboxMenu();
   menu.toggleFavorite(item, 10);
 
@@ -121,22 +121,25 @@ test("START opens settings with retention controls and FAVORITES remains the fir
   assert.equal(menu.currentFrame().kind, "settings");
   assert.equal(menu.currentFrame().title, "SETTINGS");
   assert.deepEqual(menu.currentFrame().items.map((entry) => entry.label), [
-    "FAVORITES",
-    "値を固定",
     "この項目を保持",
-    "値の固定を保持",
-    "お気に入りを保持",
-    "オンにした項目を保持",
-    "オンにしたお気に入りを保持"
+    "値を固定",
+    "お気に入り",
+    "項目の保持設定",
+    "お気に入りを保持"
   ]);
+  assert.equal(menu.currentFrame().items[0].description, "選択中の項目の状態を次回も保持します。");
+  assert.equal(menu.currentFrame().items[2].type, "folder");
+  assert.equal(menu.currentFrame().items[3].type, "folder");
   assert.deepEqual(menu.persistenceSettingsSnapshot(), DEFAULT_PERSISTENCE_SETTINGS);
 
+  menu.currentFrame().selection = 2;
   menu.handle("a", 120, true, false);
-  assert.equal(menu.currentFrame().kind, "favorites", "A on the settings FAVORITES entry opens favorites");
+  assert.equal(menu.currentFrame().kind, "favorites", "A on お気に入り opens the folder as a favorites frame");
   assert.equal(menu.currentFrame().items[0], item, "favorites still reference the original item");
 
   menu.handle("b", 140, true, false);
   assert.equal(menu.currentFrame().kind, "settings", "B returns from favorites to settings");
+  menu.currentFrame().selection = 2;
   menu.handle("a", 160, true, false);
   assert.equal(menu.currentFrame().kind, "favorites");
   menu.handle("start", 180, true, false);
@@ -145,10 +148,8 @@ test("START opens settings with retention controls and FAVORITES remains the fir
   const empty = rootCheckboxMenu().menu;
   empty.handle("start", 200, true, false);
   assert.equal(empty.currentFrame().kind, "settings");
-  assert.equal(empty.currentFrame().items[0].disabled, true, "FAVORITES setting is disabled when there are no favorites");
-  empty.currentFrame().selection = 1;
-  empty.moveSelection(-1, 210);
-  assert.equal(empty.currentFrame().selection, 0, "disabled settings entries remain cursor-selectable");
+  assert.equal(empty.currentFrame().items[2].disabled, true, "お気に入り folder is disabled when there are no favorites");
+  empty.currentFrame().selection = 2;
   assert.equal(empty.activateSelected(220), false);
 
   assert.match(html, /issue-fixes\.js/);
@@ -157,6 +158,7 @@ test("START opens settings with retention controls and FAVORITES remains the fir
   assert.ok(html.indexOf("app.js") < html.indexOf("issue-overlay.js"));
   assert.doesNotMatch(overlaySource, /R:FAV|START:CLOSE|A:SELECT/);
   assert.match(overlaySource, /menu\.isItemFixed\?\.\(selected\) \? "値を固定:ON" : ""/);
+  assert.doesNotMatch(overlaySource, /fillRect\(174, 35, 211, 11\)/);
 });
 
 test("値を固定 pins only editable linked list/value items", () => {
@@ -209,7 +211,7 @@ test("値を固定 pins only editable linked list/value items", () => {
   assert.match(overlaySource, /値を固定/);
 });
 
-test("retained state and value-lock state are persisted independently", () => {
+test("retained value, toggle-state, and value-lock snapshots are independent", () => {
   const menu = new CheatMenuModel();
   const walking = findItem(menu, "歩行速度アップ");
   const weather = findItem(menu, "天候");
@@ -238,6 +240,7 @@ test("retained state and value-lock state are persisted independently", () => {
   assert.deepEqual(all[linked.favoriteKey], { type: "linked-value", value: 1777 });
   assert.deepEqual(Object.keys(favorites), [weather.favoriteKey]);
   assert.deepEqual(menu.valueLockStateSnapshot()[linked.favoriteKey], { type: "linked-value", fixedValue: 1777 });
+  assert.deepEqual(menu.toggleStateSnapshot()[walking.favoriteKey], { type: "checkbox", value: true });
 
   const restored = new CheatMenuModel();
   const count = restored.restoreRetainedStateSnapshot(all);
@@ -250,40 +253,55 @@ test("retained state and value-lock state are persisted independently", () => {
   restored.restoreValueLockStateSnapshot(menu.valueLockStateSnapshot());
   assert.equal(restoredLinked.fixed, true);
   assert.equal(restoredLinked.fixedValue, 1777);
-  assert.match(fixesSource, /list\/listbox、linked-list、value、slider、linked-value/);
-  assert.match(fixesSource, /値の固定状態そのものは「値の固定を保持」で別途管理/);
-  assert.match(fixesSource, /未適用の編集中値は保存しない/);
+  assert.match(fixesSource, /「値の固定」と「トグル状態」は別契約/);
+  assert.match(fixesSource, /全項目がONなら保持済み\/お気に入りの範囲指定はUI上無効化/);
 });
 
-test("retention settings toggle independently inside SETTINGS", () => {
+test("項目の保持設定 has scoped value-lock and toggle-state folders", () => {
   const menu = new CheatMenuModel();
   menu.open(0);
   menu.currentFrame().selection = 1;
   menu.handle("start", 100, true, false);
-  const frame = menu.currentFrame();
+  const rootSettings = menu.currentFrame();
 
-  frame.selection = 2;
+  rootSettings.selection = 0;
   assert.equal(menu.selectedItem().label, "この項目を保持");
   menu.handle("a", 110, true, false);
   assert.equal(menu.selectedItem().value, true);
   assert.equal(menu.isItemRetained(menu.selectedItem().settingsTarget), true);
 
-  frame.selection = 3;
+  rootSettings.selection = 3;
   menu.handle("a", 120, true, false);
-  assert.equal(menu.persistenceSettingsSnapshot().keepValueLocks, true);
+  assert.equal(menu.currentFrame().title, "項目の保持設定");
+  assert.deepEqual(menu.currentFrame().items.map((entry) => entry.label), ["値の固定", "トグル状態"]);
 
-  frame.selection = 4;
-  assert.equal(menu.selectedItem().value, true);
+  menu.currentFrame().selection = 0;
   menu.handle("a", 130, true, false);
-  assert.equal(menu.persistenceSettingsSnapshot().keepFavorites, false);
-
-  frame.selection = 5;
+  assert.equal(menu.currentFrame().title, "値の固定");
+  assert.deepEqual(menu.currentFrame().items.map((entry) => entry.label), ["保持された項目", "お気に入り", "全項目"]);
+  assert.deepEqual(menu.currentFrame().items.map((entry) => entry.value), [true, false, false]);
+  menu.currentFrame().selection = 2;
   menu.handle("a", 140, true, false);
-  assert.equal(menu.persistenceSettingsSnapshot().keepEnabledItems, true);
+  assert.equal(menu.persistenceSettingsSnapshot().keepAllValueLocks, true);
+  assert.equal(menu.currentFrame().items[0].disabled, true);
+  assert.equal(menu.currentFrame().items[1].disabled, true);
 
-  frame.selection = 6;
+  menu.handle("b", 150, true, false);
+  menu.currentFrame().selection = 1;
   menu.handle("a", 160, true, false);
-  assert.equal(menu.persistenceSettingsSnapshot().keepEnabledFavorites, true);
+  assert.equal(menu.currentFrame().title, "トグル状態");
+  assert.deepEqual(menu.currentFrame().items.map((entry) => entry.label), ["保持された項目", "お気に入り", "全項目"]);
+  assert.deepEqual(menu.currentFrame().items.map((entry) => entry.value), [true, true, false]);
+  menu.currentFrame().selection = 2;
+  menu.handle("a", 170, true, false);
+  assert.equal(menu.persistenceSettingsSnapshot().keepAllToggleStates, true);
+  assert.equal(menu.currentFrame().items[0].disabled, true);
+  assert.equal(menu.currentFrame().items[1].disabled, true);
+
+  assert.doesNotMatch(fixesSource, /"値の固定を保持"/);
+  assert.doesNotMatch(fixesSource, /"オンにした項目を保持"/);
+  assert.doesNotMatch(fixesSource, /"オンにしたお気に入りを保持"/);
+  assert.match(fixesSource, /項目のトグル状態を次回も保持/);
 });
 
 test("notifications support variable row counts", () => {

@@ -164,8 +164,6 @@
 
     context.save();
     context.globalAlpha = amount;
-    context.fillStyle = "rgba(10, 13, 11, .98)";
-    context.fillRect(174, 35, 211, 11);
     if (controlText) drawBitmapText(context, font, controlText, 176, 37, "#8f9a92");
     context.restore();
   }

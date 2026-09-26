@@ -1,6 +1,6 @@
 # Menu state indicators
 
-This file records the current Gohan Menu state-indicator and footer contracts so later CTRPF work does not regress to the old F/H glyph layout.
+This file records the current Gohan Menu state-indicator, SETTINGS, and footer contracts so later CTRPF work does not regress.
 
 ## Row state indicators
 
@@ -12,23 +12,42 @@ Segments are ordered from top to bottom as follows:
 2. `この項目を保持`: red `#e5484d`
 3. ホットキー: blue `#78a9ff`
 
-For example, お気に入り + ホットキー uses yellow/blue at 1:1, and お気に入り + `この項目を保持` + ホットキー uses yellow/red/blue at 1:1:1. ホットキーは複数状態の中で常に一番下へ配置する。 Inactive states draw nothing. `値を固定` does not add a vertical line; a fixed value is indicated by its cyan value text only. The marker geometry is rendered inside the same menu-item clip as labels and values, including the partially visible eleventh row.
+For example, お気に入り + ホットキー uses yellow/blue at 1:1, and お気に入り + `この項目を保持` + ホットキー uses yellow/red/blue at 1:1:1. ホットキーは複数状態の中で常に一番下へ配置する。Inactive states draw nothing. `値を固定` does not add a vertical line; a fixed value is indicated by its cyan value text only.
 
-## Persistence settings
+## SETTINGS order
 
-SETTINGS contains, in order:
+SETTINGS is intentionally not folder-first. The root order is:
 
-1. FAVORITES
-2. 値を固定
-3. この項目を保持
-4. 値の固定を保持
-5. お気に入りを保持
-6. オンにした項目を保持
-7. オンにしたお気に入りを保持
+1. `この項目を保持`
+2. `値を固定`
+3. `お気に入り` (folder)
+4. `項目の保持設定` (folder)
+5. `お気に入りを保持`
 
-`この項目を保持` persists only the selected stateful item's applied state. `値の固定を保持` separately persists linked-item fixed state. General applied-state persistence includes checkbox/list/listbox/value/slider/linked values, but does not implicitly retain value-lock state.
+`この項目を保持` uses the description `選択中の項目の状態を次回も保持します。`.
+
+`お気に入り` is a folder-style entry, not an action-style SETTINGS command. Opening it uses the normal favorites frame so favorite items remain live references to the original menu entries.
+
+## 項目の保持設定
+
+`項目の保持設定` contains two folders:
+
+- `値の固定`
+  - `保持された項目`: default ON. Retains value-lock state for items marked by `この項目を保持`.
+  - `お気に入り`: default OFF. Retains value-lock state for favorite items.
+  - `全項目`: default OFF. Retains value-lock state for every linked item. While ON, the two scope controls above are disabled.
+- `トグル状態`
+  - `保持された項目`: default ON. Retains toggle state for items marked by `この項目を保持`.
+  - `お気に入り`: default ON. Retains toggle state for favorite items.
+  - `全項目`: default OFF. Retains toggle state for every item. While ON, the two scope controls above are disabled.
+
+The old root settings `値の固定を保持`, `オンにした項目を保持`, and `オンにしたお気に入りを保持` no longer exist. Toggle persistence is unified under `項目の保持設定/トグル状態`.
+
+The per-item retention selector is stored independently from retained state. Non-checkbox applied values for specifically retained items continue to use the per-item retained-state snapshot; checkbox toggle state and linked-item value-lock state use their respective scoped settings above.
 
 ## Description and footer
+
+The description panel does not paint a separate opaque black status strip. `値を固定:ON` may still be drawn as text, but it is rendered directly on the existing description panel background.
 
 The item description panel does not show `R:FAV`, `START:CLOSE`, or `A:SELECT`. Disabled-item description text remains readable instead of being gray-disabled.
 

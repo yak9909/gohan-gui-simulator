@@ -16,20 +16,28 @@
   const HOLD_CANCEL_THRESHOLD = 2 / 5;
   const LINKED_TYPES = new Set(["linked-value", "linked-list"]);
   const RETAINABLE_TYPES = new Set(["checkbox", "value", "slider", "list", "linked-value", "linked-list"]);
+  const TOGGLE_RETAINABLE_TYPES = new Set(["checkbox"]);
   const NOTICE_LINE_HEIGHT = 10;
   const STORAGE_KEYS = Object.freeze({
     favorites: "gohan-menu-favorites-v1",
     settings: "gohan-menu-persistence-settings-v1",
-    enabledItems: "gohan-menu-retained-state-v1",
-    enabledFavorites: "gohan-menu-retained-favorite-state-v1",
     retainedItems: "gohan-menu-retained-selected-items-v1",
+    retainedState: "gohan-menu-retained-selected-state-v2",
+    toggleStates: "gohan-menu-retained-toggle-state-v2",
     valueLocks: "gohan-menu-retained-value-locks-v1"
+  });
+  const LEGACY_STORAGE_KEYS = Object.freeze({
+    enabledItems: "gohan-menu-retained-state-v1",
+    enabledFavorites: "gohan-menu-retained-favorite-state-v1"
   });
   const DEFAULT_PERSISTENCE_SETTINGS = Object.freeze({
     keepFavorites: true,
-    keepEnabledItems: false,
-    keepEnabledFavorites: false,
-    keepValueLocks: false
+    keepRetainedValueLocks: true,
+    keepFavoriteValueLocks: false,
+    keepAllValueLocks: false,
+    keepRetainedToggleStates: true,
+    keepFavoriteToggleStates: true,
+    keepAllToggleStates: false
   });
 
   const original = {
@@ -101,17 +109,18 @@
     return clamp(index - Math.floor(visibleRows / 2), 0, Math.max(0, itemCount - visibleRows));
   }
 
-  function settingsAction(label, description, action, disabled = false) {
+  function settingsFolder(label, description, children, options = {}) {
     return {
-      id: `settings-${action}`,
-      type: "action",
+      id: `settings-folder-${options.id || label}`,
+      type: "folder",
       label,
       description,
-      action: null,
-      settingsAction: action,
+      children,
       hotkey: "なし",
       appliedHotkey: "なし",
-      disabled: Boolean(disabled)
+      disabled: Boolean(options.disabled),
+      settingsFolder: Boolean(options.settingsFolder),
+      settingsFavoritesFolder: Boolean(options.settingsFavoritesFolder)
     };
   }
 
@@ -136,9 +145,24 @@
     const stored = readJson(browserStorage(), STORAGE_KEYS.settings, {});
     menu.persistenceSettings = {
       keepFavorites: stored?.keepFavorites !== undefined ? Boolean(stored.keepFavorites) : DEFAULT_PERSISTENCE_SETTINGS.keepFavorites,
-      keepEnabledItems: stored?.keepEnabledItems !== undefined ? Boolean(stored.keepEnabledItems) : DEFAULT_PERSISTENCE_SETTINGS.keepEnabledItems,
-      keepEnabledFavorites: stored?.keepEnabledFavorites !== undefined ? Boolean(stored.keepEnabledFavorites) : DEFAULT_PERSISTENCE_SETTINGS.keepEnabledFavorites,
-      keepValueLocks: stored?.keepValueLocks !== undefined ? Boolean(stored.keepValueLocks) : DEFAULT_PERSISTENCE_SETTINGS.keepValueLocks
+      keepRetainedValueLocks: stored?.keepRetainedValueLocks !== undefined
+        ? Boolean(stored.keepRetainedValueLocks)
+        : DEFAULT_PERSISTENCE_SETTINGS.keepRetainedValueLocks,
+      keepFavoriteValueLocks: stored?.keepFavoriteValueLocks !== undefined
+        ? Boolean(stored.keepFavoriteValueLocks)
+        : DEFAULT_PERSISTENCE_SETTINGS.keepFavoriteValueLocks,
+      keepAllValueLocks: stored?.keepAllValueLocks !== undefined
+        ? Boolean(stored.keepAllValueLocks)
+        : (stored?.keepValueLocks !== undefined ? Boolean(stored.keepValueLocks) : DEFAULT_PERSISTENCE_SETTINGS.keepAllValueLocks),
+      keepRetainedToggleStates: stored?.keepRetainedToggleStates !== undefined
+        ? Boolean(stored.keepRetainedToggleStates)
+        : DEFAULT_PERSISTENCE_SETTINGS.keepRetainedToggleStates,
+      keepFavoriteToggleStates: stored?.keepFavoriteToggleStates !== undefined
+        ? Boolean(stored.keepFavoriteToggleStates)
+        : (stored?.keepEnabledFavorites !== undefined ? Boolean(stored.keepEnabledFavorites) : DEFAULT_PERSISTENCE_SETTINGS.keepFavoriteToggleStates),
+      keepAllToggleStates: stored?.keepAllToggleStates !== undefined
+        ? Boolean(stored.keepAllToggleStates)
+        : (stored?.keepEnabledItems !== undefined ? Boolean(stored.keepEnabledItems) : DEFAULT_PERSISTENCE_SETTINGS.keepAllToggleStates)
     };
     return menu.persistenceSettings;
   }
@@ -184,12 +208,18 @@
     return snapshot;
   }
 
+  function makeRetainedItemSelection(menu) {
+    const snapshot = {};
+    for (const key of ensureRetainedItemKeys(menu)) snapshot[key] = true;
+    return snapshot;
+  }
+
   function makeSpecificRetainedSnapshot(menu) {
     const keys = ensureRetainedItemKeys(menu);
     const snapshot = {};
     walkItems(menu.rootItems, (entry) => {
       const key = retentionKey(entry);
-      if (!key || !keys.has(key)) return;
+      if (!key || !keys.has(key) || entry.type === "checkbox") return;
       const state = snapshotEntry(entry);
       if (state) snapshot[key] = state;
     });
@@ -213,10 +243,54 @@
     return restored;
   }
 
-  function makeValueLockSnapshot(menu) {
+  function stateScopeMatches(menu, entry, settings, retainedKey, favoriteKey, allKey) {
+    if (settings[allKey]) return true;
+    const key = retentionKey(entry);
+    if (settings[retainedKey] && key && ensureRetainedItemKeys(menu).has(key)) return true;
+    return Boolean(settings[favoriteKey] && menu.isFavorite(entry));
+  }
+
+  function makeToggleStateSnapshot(menu, settings = {
+    keepRetainedToggleStates: false,
+    keepFavoriteToggleStates: false,
+    keepAllToggleStates: true
+  }) {
+    const snapshot = {};
+    walkItems(menu.rootItems, (entry) => {
+      if (!TOGGLE_RETAINABLE_TYPES.has(entry.type) || !Object.hasOwn(entry, "appliedValue")) return;
+      if (!stateScopeMatches(menu, entry, settings, "keepRetainedToggleStates", "keepFavoriteToggleStates", "keepAllToggleStates")) return;
+      const key = retentionKey(entry);
+      if (key) snapshot[key] = { type: entry.type, value: Boolean(entry.appliedValue) };
+    });
+    return snapshot;
+  }
+
+  function applyToggleStateSnapshot(menu, snapshot) {
+    if (!snapshot || typeof snapshot !== "object") return 0;
+    let restored = 0;
+    walkItems(menu.rootItems, (entry) => {
+      if (!TOGGLE_RETAINABLE_TYPES.has(entry.type)) return;
+      const key = retentionKey(entry);
+      const state = key ? snapshot[key] : null;
+      if (!state || state.type !== entry.type) return;
+      const value = Boolean(state.value);
+      entry.value = value;
+      entry.appliedValue = value;
+      if (entry.effectKind) entry.effectActive = value;
+      restored++;
+    });
+    return restored;
+  }
+
+  function makeValueLockSnapshot(menu, settings = {
+    keepRetainedValueLocks: false,
+    keepFavoriteValueLocks: false,
+    keepAllValueLocks: true
+  }) {
     const snapshot = {};
     walkItems(menu.rootItems, (entry) => {
       if (!LINKED_TYPES.has(entry.type) || entry.fixed !== true) return;
+      if (!stateScopeMatches(menu, entry, settings, "keepRetainedValueLocks", "keepFavoriteValueLocks", "keepAllValueLocks")) return;
       const key = retentionKey(entry);
       if (!key) return;
       snapshot[key] = { type: entry.type, fixedValue: entry.fixedValue };
@@ -248,18 +322,22 @@
     menu.__retainedStateRestored = true;
     const settings = ensurePersistenceSettings(menu);
     const storage = browserStorage();
-    const specific = readJson(storage, STORAGE_KEYS.retainedItems, {});
-    menu.retainedItemKeys = new Set(specific && typeof specific === "object" ? Object.keys(specific) : []);
+    const selected = readJson(storage, STORAGE_KEYS.retainedItems, {});
+    menu.retainedItemKeys = new Set(selected && typeof selected === "object" ? Object.keys(selected) : []);
 
-    if (settings.keepEnabledItems) applyRetainedSnapshot(menu, readJson(storage, STORAGE_KEYS.enabledItems, {}));
-    else if (settings.keepEnabledFavorites) applyRetainedSnapshot(menu, readJson(storage, STORAGE_KEYS.enabledFavorites, {}));
+    // 「この項目を保持」の選択自体と、選択項目の通常値は分離して保存する。
+    // v1では同じオブジェクトへ保存していたため、新形式が無い場合だけv1内容を移行元として読む。
+    const specificState = readJson(storage, STORAGE_KEYS.retainedState, null);
+    applyRetainedSnapshot(menu, specificState ?? selected);
 
-    // 「この項目を保持」は全体設定とは独立した個別指定。最後に適用して、
-    // 全体保持がOFFでも指定項目の適用済み状態だけは復元する。
-    applyRetainedSnapshot(menu, specific);
+    let toggleState = readJson(storage, STORAGE_KEYS.toggleStates, null);
+    if (!toggleState) {
+      if (settings.keepAllToggleStates) toggleState = readJson(storage, LEGACY_STORAGE_KEYS.enabledItems, {});
+      else if (settings.keepFavoriteToggleStates) toggleState = readJson(storage, LEGACY_STORAGE_KEYS.enabledFavorites, {});
+    }
+    applyToggleStateSnapshot(menu, toggleState || {});
 
-    // 値固定は適用値の保持とは別契約。明示的にONの場合だけ復元する。
-    if (settings.keepValueLocks) applyValueLockSnapshot(menu, readJson(storage, STORAGE_KEYS.valueLocks, {}));
+    applyValueLockSnapshot(menu, readJson(storage, STORAGE_KEYS.valueLocks, {}));
   }
 
   function persistBrowserState(menu) {
@@ -270,18 +348,21 @@
     if (settings.keepFavorites) writeJson(storage, STORAGE_KEYS.favorites, original.favoriteKeysArray.call(menu));
     else writeJson(storage, STORAGE_KEYS.favorites, []);
 
-    // 「オンにした項目を保持」はON/OFFチェックだけを指さない。
-    // CTRPF移植時も、list/listbox、linked-list、value、slider、linked-value の
-    // 適用済み状態を同じ保存対象として扱い、未適用の編集中値は保存しない。
-    // 値の固定状態そのものは「値の固定を保持」で別途管理する。
-    if (settings.keepEnabledItems) writeJson(storage, STORAGE_KEYS.enabledItems, makeRetainedSnapshot(menu, false));
-    else removeStored(storage, STORAGE_KEYS.enabledItems);
-    if (settings.keepEnabledFavorites) writeJson(storage, STORAGE_KEYS.enabledFavorites, makeRetainedSnapshot(menu, true));
-    else removeStored(storage, STORAGE_KEYS.enabledFavorites);
+    writeJson(storage, STORAGE_KEYS.retainedItems, makeRetainedItemSelection(menu));
+    writeJson(storage, STORAGE_KEYS.retainedState, makeSpecificRetainedSnapshot(menu));
 
-    writeJson(storage, STORAGE_KEYS.retainedItems, makeSpecificRetainedSnapshot(menu));
-    if (settings.keepValueLocks) writeJson(storage, STORAGE_KEYS.valueLocks, makeValueLockSnapshot(menu));
-    else removeStored(storage, STORAGE_KEYS.valueLocks);
+    // CTRPF移植時も「値の固定」と「トグル状態」は別契約として保存する。
+    // 全項目がONなら保持済み/お気に入りの範囲指定はUI上無効化し、保存判定でも全項目を優先する。
+    if (settings.keepRetainedToggleStates || settings.keepFavoriteToggleStates || settings.keepAllToggleStates) {
+      writeJson(storage, STORAGE_KEYS.toggleStates, makeToggleStateSnapshot(menu, settings));
+    } else removeStored(storage, STORAGE_KEYS.toggleStates);
+
+    if (settings.keepRetainedValueLocks || settings.keepFavoriteValueLocks || settings.keepAllValueLocks) {
+      writeJson(storage, STORAGE_KEYS.valueLocks, makeValueLockSnapshot(menu, settings));
+    } else removeStored(storage, STORAGE_KEYS.valueLocks);
+
+    removeStored(storage, LEGACY_STORAGE_KEYS.enabledItems);
+    removeStored(storage, LEGACY_STORAGE_KEYS.enabledFavorites);
   }
 
   function measureBitmapText(font, text) {
@@ -655,6 +736,10 @@
     return makeValueLockSnapshot(this);
   };
 
+  prototype.toggleStateSnapshot = function () {
+    return makeToggleStateSnapshot(this);
+  };
+
   prototype.restoreRetainedStateSnapshot = function (snapshot) {
     const restored = applyRetainedSnapshot(this, snapshot);
     this.refreshDisabledItems();
@@ -719,15 +804,18 @@
 
   prototype.buildSettingsItems = function (target) {
     const persistence = ensurePersistenceSettings(this);
-    const favorites = settingsAction(
-      "FAVORITES",
-      "お気に入り項目を表示します。",
-      "favorites",
-      this.favoriteItems().length === 0
-    );
     const linked = this.isLinkedEntry(target);
     const fixed = this.isItemFixed(target);
     const lockDisabled = !linked || (Boolean(target?.disabled) && !fixed);
+
+    const keepThisItem = settingsToggle(
+      "この項目を保持",
+      "選択中の項目の状態を次回も保持します。",
+      "keep-this-item",
+      this.isItemRetained(target),
+      target,
+      !this.isItemRetainable(target)
+    );
     const lock = settingsToggle(
       "値を固定",
       "選択中の連動型の値を固定します。",
@@ -736,19 +824,80 @@
       target,
       lockDisabled
     );
-    const keepThisItem = settingsToggle(
-      "この項目を保持",
-      "選択中の項目の適用済み状態だけを次回も保持します。",
-      "keep-this-item",
-      this.isItemRetained(target),
-      target,
-      !this.isItemRetainable(target)
+    const favorites = settingsFolder(
+      "お気に入り",
+      "お気に入り項目を表示します。",
+      this.favoriteItems(),
+      { id: "favorites", settingsFavoritesFolder: true, disabled: this.favoriteItems().length === 0 }
     );
-    const keepValueLocks = settingsToggle(
-      "値の固定を保持",
-      "値を固定した状態を次回も保持します。",
-      "keep-value-locks",
-      persistence.keepValueLocks
+
+    const valueLockAll = persistence.keepAllValueLocks;
+    const valueLockFolder = settingsFolder(
+      "値の固定",
+      "値の固定状態を次回も保持する範囲を設定します。",
+      [
+        settingsToggle(
+          "保持された項目",
+          "「この項目を保持」がオンの項目の値の固定を次回も保持します。",
+          "keep-retained-value-locks",
+          persistence.keepRetainedValueLocks,
+          null,
+          valueLockAll
+        ),
+        settingsToggle(
+          "お気に入り",
+          "お気に入りの値の固定を次回も保持します。",
+          "keep-favorite-value-locks",
+          persistence.keepFavoriteValueLocks,
+          null,
+          valueLockAll
+        ),
+        settingsToggle(
+          "全項目",
+          "全項目の値の固定を次回も保持します。",
+          "keep-all-value-locks",
+          persistence.keepAllValueLocks
+        )
+      ],
+      { id: "value-lock-retention", settingsFolder: true }
+    );
+
+    const toggleAll = persistence.keepAllToggleStates;
+    const toggleFolder = settingsFolder(
+      "トグル状態",
+      "項目のトグル状態を次回も保持する範囲を設定します。",
+      [
+        settingsToggle(
+          "保持された項目",
+          "「この項目を保持」がオンの項目のトグル状態を次回も保持します。",
+          "keep-retained-toggle-states",
+          persistence.keepRetainedToggleStates,
+          null,
+          toggleAll
+        ),
+        settingsToggle(
+          "お気に入り",
+          "お気に入り項目のトグル状態を次回も保持します。",
+          "keep-favorite-toggle-states",
+          persistence.keepFavoriteToggleStates,
+          null,
+          toggleAll
+        ),
+        settingsToggle(
+          "全項目",
+          "全項目のトグル状態を次回も保持します。",
+          "keep-all-toggle-states",
+          persistence.keepAllToggleStates
+        )
+      ],
+      { id: "toggle-retention", settingsFolder: true }
+    );
+
+    const retentionSettings = settingsFolder(
+      "項目の保持設定",
+      "値の固定と項目のトグル状態の保持範囲を設定します。",
+      [valueLockFolder, toggleFolder],
+      { id: "retention", settingsFolder: true }
     );
     const keepFavorites = settingsToggle(
       "お気に入りを保持",
@@ -756,19 +905,9 @@
       "keep-favorites",
       persistence.keepFavorites
     );
-    const keepEnabledItems = settingsToggle(
-      "オンにした項目を保持",
-      "適用済みの項目設定を次回も保持します。値・リストボックス等も含みます。",
-      "keep-enabled-items",
-      persistence.keepEnabledItems
-    );
-    const keepEnabledFavorites = settingsToggle(
-      "オンにしたお気に入りを保持",
-      "お気に入り項目の適用済み設定を次回も保持します。",
-      "keep-enabled-favorites",
-      persistence.keepEnabledFavorites
-    );
-    return [favorites, lock, keepThisItem, keepValueLocks, keepFavorites, keepEnabledItems, keepEnabledFavorites];
+
+    // SETTINGSだけは操作頻度を優先し、フォルダを先頭へ寄せず指定順を維持する。
+    return [keepThisItem, lock, favorites, retentionSettings, keepFavorites];
   };
 
   prototype.openSettings = function (now = 0) {
@@ -797,10 +936,23 @@
   prototype.activateSelected = function (now) {
     const frame = original.currentFrame.call(this);
     const entry = frame?.items?.[frame.selection];
+    if (frame?.kind === "settings" && entry?.settingsFavoritesFolder) {
+      if (entry.disabled) return false;
+      this.activationBounceStartedAt = now;
+      this.frames.push({ title: entry.label, items: this.favoriteItems(), selection: 0, kind: "favorites" });
+      this.resetSelectionAnimation(now);
+      return true;
+    }
+    if (frame?.kind === "settings" && entry?.settingsFolder) {
+      if (entry.disabled) return false;
+      this.activationBounceStartedAt = now;
+      this.frames.push({ title: entry.label, items: entry.children, selection: 0, kind: "settings" });
+      this.resetSelectionAnimation(now);
+      return true;
+    }
     if (frame?.kind === "settings" && entry?.settingsAction) {
       if (entry.disabled) return false;
       this.activationBounceStartedAt = now;
-      if (entry.settingsAction === "favorites") return this.openFavorites(now);
       if (entry.settingsAction === "value-lock") {
         const target = entry.settingsTarget;
         const next = !this.isItemFixed(target);
@@ -818,16 +970,35 @@
         return true;
       }
       const settingKey = ({
-        "keep-value-locks": "keepValueLocks",
         "keep-favorites": "keepFavorites",
-        "keep-enabled-items": "keepEnabledItems",
-        "keep-enabled-favorites": "keepEnabledFavorites"
+        "keep-retained-value-locks": "keepRetainedValueLocks",
+        "keep-favorite-value-locks": "keepFavoriteValueLocks",
+        "keep-all-value-locks": "keepAllValueLocks",
+        "keep-retained-toggle-states": "keepRetainedToggleStates",
+        "keep-favorite-toggle-states": "keepFavoriteToggleStates",
+        "keep-all-toggle-states": "keepAllToggleStates"
       })[entry.settingsAction];
       if (settingKey) {
         const persistence = ensurePersistenceSettings(this);
         persistence[settingKey] = !persistence[settingKey];
         entry.value = persistence[settingKey];
         entry.appliedValue = entry.value;
+
+        if (entry.settingsAction === "keep-all-value-locks") {
+          for (const sibling of frame.items) {
+            if (["keep-retained-value-locks", "keep-favorite-value-locks"].includes(sibling.settingsAction)) {
+              sibling.disabled = entry.value;
+            }
+          }
+        }
+        if (entry.settingsAction === "keep-all-toggle-states") {
+          for (const sibling of frame.items) {
+            if (["keep-retained-toggle-states", "keep-favorite-toggle-states"].includes(sibling.settingsAction)) {
+              sibling.disabled = entry.value;
+            }
+          }
+        }
+
         persistBrowserState(this);
         return true;
       }
@@ -866,7 +1037,7 @@
   };
 
   const api = Object.freeze({
-    HOLD_CANCEL_THRESHOLD, LINKED_TYPES, RETAINABLE_TYPES, NOTICE_LINE_HEIGHT,
+    HOLD_CANCEL_THRESHOLD, LINKED_TYPES, RETAINABLE_TYPES, TOGGLE_RETAINABLE_TYPES, NOTICE_LINE_HEIGHT,
     STORAGE_KEYS, DEFAULT_PERSISTENCE_SETTINGS
   });
   if (root) root.GohanIssueFixes = api;

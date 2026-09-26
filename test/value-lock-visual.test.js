@@ -17,4 +17,5 @@ test("値を固定 uses cyan value text without adding a side marker", () => {
   assert.match(source, /VALUE_LOCK_VALUE_COLOR/);
   assert.match(source, /値を固定:ON/);
   assert.match(source, /if \(controlText\) drawBitmapText/);
+  assert.doesNotMatch(source, /fillRect\(174, 35, 211, 11\)/);
 });
