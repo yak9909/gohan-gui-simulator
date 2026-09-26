@@ -125,11 +125,15 @@ test("START opens settings with the requested mixed item/folder order", () => {
     "値を固定",
     "お気に入り",
     "項目の保持設定",
-    "お気に入りを保持"
+    "お気に入りを保持",
+    "押し切るまでABXYボタンの遮断"
   ]);
   assert.equal(menu.currentFrame().items[0].description, "選択中の項目の状態を次回も保持します。");
   assert.equal(menu.currentFrame().items[2].type, "folder");
   assert.equal(menu.currentFrame().items[3].type, "folder");
+  assert.equal(menu.currentFrame().items[5].type, "checkbox");
+  assert.equal(menu.currentFrame().items[5].value, false);
+  assert.equal(menu.currentFrame().items[5].description, "ABXYは押下中にゲームへ渡さず、離した時に入力します。");
   assert.deepEqual(menu.persistenceSettingsSnapshot(), DEFAULT_PERSISTENCE_SETTINGS);
 
   menu.currentFrame().selection = 2;
@@ -159,6 +163,27 @@ test("START opens settings with the requested mixed item/folder order", () => {
   assert.doesNotMatch(overlaySource, /R:FAV|START:CLOSE|A:SELECT/);
   assert.match(overlaySource, /menu\.isItemFixed\?\.\(selected\) \? "値を固定:ON" : ""/);
   assert.doesNotMatch(overlaySource, /fillRect\(174, 35, 211, 11\)/);
+});
+
+test("ABXY release-block setting is UI/persistence only", () => {
+  const menu = new CheatMenuModel();
+  menu.open(0);
+  menu.handle("start", 100, true, false);
+  const frame = menu.currentFrame();
+  frame.selection = 5;
+  const setting = menu.selectedItem();
+  assert.equal(setting.label, "押し切るまでABXYボタンの遮断");
+  assert.equal(setting.value, false);
+
+  menu.handle("a", 110, true, false);
+  assert.equal(setting.value, true);
+  assert.equal(menu.persistenceSettingsSnapshot().blockAbxyUntilRelease, true);
+
+  // This simulator only stores/previews the CTRPF option. It must not alter the
+  // simulator's game-input capture contract or synthesize release-time ABXY input.
+  assert.match(fixesSource, /CTRPF移植専用設定。シミュレーターの入力処理には接続しない。/);
+  assert.match(fixesSource, /ボタンを離した瞬間に/);
+  assert.doesNotMatch(fixesSource, /gameInputCaptureState\s*=.*blockAbxyUntilRelease/s);
 });
 
 test("値を固定 pins only editable linked list/value items", () => {

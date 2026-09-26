@@ -37,7 +37,8 @@
     keepAllValueLocks: false,
     keepRetainedToggleStates: true,
     keepFavoriteToggleStates: true,
-    keepAllToggleStates: false
+    keepAllToggleStates: false,
+    blockAbxyUntilRelease: false
   });
 
   const original = {
@@ -162,7 +163,10 @@
         : (stored?.keepEnabledFavorites !== undefined ? Boolean(stored.keepEnabledFavorites) : DEFAULT_PERSISTENCE_SETTINGS.keepFavoriteToggleStates),
       keepAllToggleStates: stored?.keepAllToggleStates !== undefined
         ? Boolean(stored.keepAllToggleStates)
-        : (stored?.keepEnabledItems !== undefined ? Boolean(stored.keepEnabledItems) : DEFAULT_PERSISTENCE_SETTINGS.keepAllToggleStates)
+        : (stored?.keepEnabledItems !== undefined ? Boolean(stored.keepEnabledItems) : DEFAULT_PERSISTENCE_SETTINGS.keepAllToggleStates),
+      blockAbxyUntilRelease: stored?.blockAbxyUntilRelease !== undefined
+        ? Boolean(stored.blockAbxyUntilRelease)
+        : DEFAULT_PERSISTENCE_SETTINGS.blockAbxyUntilRelease
     };
     return menu.persistenceSettings;
   }
@@ -920,9 +924,18 @@
       "keep-favorites",
       persistence.keepFavorites
     );
+    // CTRPF移植専用設定。シミュレーターの入力処理には接続しない。
+    // CTRPF側では A/B/X/Y の押下中はゲーム側へ入力を渡さず、ボタンを離した瞬間に
+    // 初めて単発のゲーム入力として渡す。押し続けている間のゲーム側反応やリピートは発生させない。
+    const blockAbxyUntilRelease = settingsToggle(
+      "押し切るまでABXYボタンの遮断",
+      "ABXYは押下中にゲームへ渡さず、離した時に入力します。",
+      "block-abxy-until-release",
+      persistence.blockAbxyUntilRelease
+    );
 
     // SETTINGSだけは操作頻度を優先し、フォルダを先頭へ寄せず指定順を維持する。
-    return [keepThisItem, lock, favorites, retentionSettings, keepFavorites];
+    return [keepThisItem, lock, favorites, retentionSettings, keepFavorites, blockAbxyUntilRelease];
   };
 
   prototype.openSettings = function (now = 0) {
@@ -991,7 +1004,8 @@
         "keep-all-value-locks": "keepAllValueLocks",
         "keep-retained-toggle-states": "keepRetainedToggleStates",
         "keep-favorite-toggle-states": "keepFavoriteToggleStates",
-        "keep-all-toggle-states": "keepAllToggleStates"
+        "keep-all-toggle-states": "keepAllToggleStates",
+        "block-abxy-until-release": "blockAbxyUntilRelease"
       })[entry.settingsAction];
       if (settingKey) {
         const persistence = ensurePersistenceSettings(this);
