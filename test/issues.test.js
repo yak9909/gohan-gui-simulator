@@ -211,6 +211,63 @@ test("値を固定 pins only editable linked list/value items", () => {
   assert.match(overlaySource, /値を固定/);
 });
 
+test("fixed linked items accept user edits and list values support left/right", () => {
+  const menu = new CheatMenuModel();
+  menu.open(0);
+
+  const linkedValue = selectNestedItem(menu, "UIテスト", "連動型数値");
+  const initialValue = linkedValue.value;
+  assert.equal(menu.setItemFixed(linkedValue, true, 10), true);
+
+  menu.handle("right", 20, true, false);
+  menu.handle("right", 21, false, false);
+  assert.equal(linkedValue.value, initialValue + linkedValue.step, "fixed linked value still accepts left/right edits");
+  menu.update(22);
+  assert.equal(linkedValue.fixedValue, initialValue + linkedValue.step, "left/right edit becomes the new fixed value");
+  assert.equal(linkedValue.appliedValue, linkedValue.fixedValue);
+  assert.equal(linkedValue.linkedValue, linkedValue.fixedValue);
+
+  const typedValue = linkedValue.fixedValue + 350;
+  menu.handle("a", 30, true, false);
+  assert.equal(menu.overlay?.type, "numeric");
+  menu.overlay.buffer = String(typedValue);
+  menu.activateNumericKey("OK", 31);
+  menu.update(32);
+  assert.equal(linkedValue.fixedValue, typedValue, "numeric confirmation updates the fixed target");
+  assert.equal(linkedValue.value, typedValue);
+  assert.equal(linkedValue.appliedValue, typedValue);
+
+  linkedValue.linkedValue = typedValue + 999;
+  menu.update(33);
+  assert.equal(linkedValue.linkedValue, typedValue, "external linked-value drift is still overwritten by the fixed value");
+
+  menu.update(300);
+  assert.equal(menu.overlay, null, "numeric overlay finishes closing before normal menu input resumes");
+
+  const weather = findItem(menu, "天候");
+  menu.frames = [{ title: "ROOT", items: menu.rootItems, selection: menu.rootItems.indexOf(weather) }];
+  menu.resetSelectionAnimation(40);
+  assert.equal(weather.value, 0);
+  menu.handle("right", 41, true, false);
+  menu.handle("right", 42, false, false);
+  assert.equal(weather.value, 1, "list advances with Right");
+  menu.handle("left", 43, true, false);
+  menu.handle("left", 44, false, false);
+  assert.equal(weather.value, 0, "list moves back with Left");
+
+  const linkedList = selectNestedItem(menu, "UIテスト", "連動型リスト");
+  assert.equal(menu.setItemFixed(linkedList, true, 50), true);
+  menu.handle("right", 51, true, false);
+  menu.handle("right", 52, false, false);
+  menu.update(53);
+  assert.equal(linkedList.value, 1);
+  assert.equal(linkedList.fixedValue, 1, "fixed linked-list left/right edit becomes the new fixed value");
+  assert.equal(linkedList.linkedValue, 1);
+
+  assert.match(fixesSource, /value と appliedValue が違う時だけ/);
+  assert.match(fs.readFileSync(path.join(__dirname, "../ui-model.js"), "utf8"), /changeListValue/);
+});
+
 test("retained value, toggle-state, and value-lock snapshots are independent", () => {
   const menu = new CheatMenuModel();
   const walking = findItem(menu, "歩行速度アップ");

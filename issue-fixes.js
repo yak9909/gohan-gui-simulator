@@ -669,12 +669,27 @@
   };
 
   prototype.updateFixedLinkedItems = function () {
+    let fixedValueChanged = false;
     walkItems(this.rootItems, (entry) => {
       if (!entry.fixed || !LINKED_TYPES.has(entry.type) || entry.disabled || entry.linkedAvailable === false) return;
+
+      // 固定中でもメニュー上のユーザー編集は許可する。value と appliedValue が違う時だけ
+      // ユーザーが左右キー・数値入力・リスト選択で変更したとみなし、その値を新しい固定値にする。
+      // CTRPF移植時は「ゲーム側から読んだ値」と「UIが編集した値」を同様に分離し、
+      // 外部変動だけを固定値へ戻して、UI入力は固定値そのものを更新する。
+      if (entry.value !== entry.appliedValue) {
+        entry.fixedValue = entry.value;
+        entry.linkedValue = entry.value;
+        entry.appliedValue = entry.value;
+        fixedValueChanged = true;
+        return;
+      }
+
       entry.linkedValue = entry.fixedValue;
       entry.value = entry.fixedValue;
       entry.appliedValue = entry.fixedValue;
     });
+    if (fixedValueChanged) persistBrowserState(this);
   };
 
   prototype.syncLinkedItems = function () {

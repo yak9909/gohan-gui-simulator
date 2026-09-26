@@ -1046,6 +1046,19 @@ class CheatMenuModel {
     this.valueBounceStartedAt = now;
   }
 
+  changeListValue(entry, direction, now) {
+    if (!entry || entry.disabled || !["list", "linked-list"].includes(entry.type)) return false;
+    const optionCount = entry.options?.length || 0;
+    if (optionCount <= 0) return false;
+    const next = clamp(Math.round(entry.value) + direction, 0, optionCount - 1);
+    if (next === entry.value) return false;
+    entry.value = next;
+    // CTRPF移植時も通常の数値左右変更と同じ入力フィードバックを使う。
+    this.valueBounceDirection = direction;
+    this.valueBounceStartedAt = now;
+    return true;
+  }
+
   openNumeric(entry, applyOnConfirm = false, now = 0) {
     const mode = entry.format === "hex" ? "hex" : "dec";
     this.overlay = {
@@ -1417,6 +1430,7 @@ class CheatMenuModel {
     else if (key === "r" && !repeated) this.toggleFavorite(this.selectedItem(), now);
     else if (key === "start" && !repeated) this.toggleFavorites(now);
     else if ((key === "left" || key === "right") && ["value", "slider", "linked-value"].includes(this.selectedItem().type)) this.changeValue(this.selectedItem(), key === "right" ? 1 : -1, now);
+    else if ((key === "left" || key === "right") && ["list", "linked-list"].includes(this.selectedItem().type)) this.changeListValue(this.selectedItem(), key === "right" ? 1 : -1, now);
   }
 
   selectOverlayCell(row, column, updateSelection = true, now = 0) {

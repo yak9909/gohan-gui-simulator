@@ -45,6 +45,12 @@ The old root settings `値の固定を保持`, `オンにした項目を保持`,
 
 The per-item retention selector is stored independently from retained state. Non-checkbox applied values for specifically retained items continue to use the per-item retained-state snapshot; checkbox toggle state and linked-item value-lock state use their respective scoped settings above.
 
+## Fixed linked-item editing
+
+A fixed linked item still accepts explicit user edits. For `linked-value`, left/right adjustment and a confirmed numeric-keyboard value become the new fixed value. For `linked-list`, left/right changes the selected option directly; inline-list selection remains available with A. External/game-side linked-value drift is still overwritten by the current fixed value.
+
+`list` and `linked-list` rows both support direct left/right option changes. The option index is clamped at the first and last entry rather than wrapping.
+
 ## Description and footer
 
 The description panel does not paint a separate opaque black status strip. `値を固定:ON` may still be drawn as text, but it is rendered directly on the existing description panel background.
